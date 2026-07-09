@@ -22,26 +22,68 @@
   //  Defaults — used to seed storage on first run and for "Reset to defaults".
   //  After that, edit bots via the Tampermonkey menu → "Configure mention bots".
   // ────────────────────────────────────────────────────────────────────────
-  const CUSTOM_BOTS = [
-      { login: 'claraclaw', name: 'ClaraClaw', avatar: '' },
-  ];
+  const CUSTOM_BOTS = [{ login: 'claraclaw', name: 'ClaraClaw', avatar: '' }];
   const DEFAULTS = {
     maxResults: 8,
-    showOnEmpty: true,   // list all bots the moment "@" is typed
-    showBadge: true,     // small "bot" tag on the right of each entry
+    showOnEmpty: true, // list all bots the moment "@" is typed
+    showBadge: true, // small "bot" tag on the right of each entry
     bots: [
       ...CUSTOM_BOTS,
-      { login: 'claude',          name: 'Claude Code — Anthropic',  avatar: 'https://avatars.githubusercontent.com/u/81847?v=4' },
-      { login: 'copilot',         name: 'GitHub Copilot',           avatar: 'https://avatars.githubusercontent.com/u/9919?v=4' },
-      { login: 'coderabbitai',    name: 'CodeRabbit — AI review',   avatar: 'https://avatars.githubusercontent.com/in/347564?v=4' },
-      { login: 'greptile',        name: 'Greptile — AI review',     avatar: 'https://avatars.githubusercontent.com/u/161434094?v=4' },
-      { login: 'dependabot',      name: 'Dependabot',               avatar: 'https://avatars.githubusercontent.com/in/29110?v=4' },
-      { login: 'renovate',        name: 'Renovate',                 avatar: 'https://avatars.githubusercontent.com/u/38656520?v=4' },
-      { login: 'github-actions',  name: 'GitHub Actions',           avatar: 'https://avatars.githubusercontent.com/u/9919?v=4' },
-      { login: 'codecov',         name: 'Codecov',                  avatar: 'https://avatars.githubusercontent.com/in/254?v=4' },
-      { login: 'sonarcloud',      name: 'SonarCloud',               avatar: 'https://avatars.githubusercontent.com/u/39168408?v=4' },
-      { login: 'sentry-io',       name: 'Sentry',                   avatar: 'https://avatars.githubusercontent.com/u/114699524?v=4' },
-      { login: 'allcontributors', name: 'All Contributors',         avatar: 'https://avatars.githubusercontent.com/u/46410174?v=4' },
+      {
+        login: 'claude',
+        name: 'Claude Code — Anthropic',
+        avatar: 'https://avatars.githubusercontent.com/u/81847?v=4',
+      },
+      {
+        login: 'copilot',
+        name: 'GitHub Copilot',
+        avatar: 'https://avatars.githubusercontent.com/u/9919?v=4',
+      },
+      {
+        login: 'coderabbitai',
+        name: 'CodeRabbit — AI review',
+        avatar: 'https://avatars.githubusercontent.com/in/347564?v=4',
+      },
+      {
+        login: 'greptile',
+        name: 'Greptile — AI review',
+        avatar: 'https://avatars.githubusercontent.com/u/161434094?v=4',
+      },
+      {
+        login: 'dependabot',
+        name: 'Dependabot',
+        avatar: 'https://avatars.githubusercontent.com/in/29110?v=4',
+      },
+      {
+        login: 'renovate',
+        name: 'Renovate',
+        avatar: 'https://avatars.githubusercontent.com/u/38656520?v=4',
+      },
+      {
+        login: 'github-actions',
+        name: 'GitHub Actions',
+        avatar: 'https://avatars.githubusercontent.com/u/9919?v=4',
+      },
+      {
+        login: 'codecov',
+        name: 'Codecov',
+        avatar: 'https://avatars.githubusercontent.com/in/254?v=4',
+      },
+      {
+        login: 'sonarcloud',
+        name: 'SonarCloud',
+        avatar: 'https://avatars.githubusercontent.com/u/39168408?v=4',
+      },
+      {
+        login: 'sentry-io',
+        name: 'Sentry',
+        avatar: 'https://avatars.githubusercontent.com/u/114699524?v=4',
+      },
+      {
+        login: 'allcontributors',
+        name: 'All Contributors',
+        avatar: 'https://avatars.githubusercontent.com/u/46410174?v=4',
+      },
     ],
   };
 
@@ -49,9 +91,9 @@
     'data:image/svg+xml;utf8,' +
     encodeURIComponent(
       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="20" height="20">' +
-      '<rect width="16" height="16" rx="4" fill="%236e7781"/>' +
-      '<circle cx="5.5" cy="7" r="1.3" fill="white"/><circle cx="10.5" cy="7" r="1.3" fill="white"/>' +
-      '<rect x="4.5" y="10" width="7" height="1.4" rx="0.7" fill="white"/></svg>'
+        '<rect width="16" height="16" rx="4" fill="%236e7781"/>' +
+        '<circle cx="5.5" cy="7" r="1.3" fill="white"/><circle cx="10.5" cy="7" r="1.3" fill="white"/>' +
+        '<rect x="4.5" y="10" width="7" height="1.4" rx="0.7" fill="white"/></svg>',
     );
 
   const MENU_SELECTOR = 'ul.suggester, [role="listbox"]';
@@ -61,7 +103,9 @@
   // ── storage ──────────────────────────────────────────────────────────────
   function loadConfig() {
     let saved = null;
-    try { saved = GM_getValue('config', null); } catch (e) {}
+    try {
+      saved = GM_getValue('config', null);
+    } catch (_e) {}
     if (!saved || typeof saved !== 'object') return clone(DEFAULTS);
     return {
       maxResults: saved.maxResults ?? DEFAULTS.maxResults,
@@ -70,7 +114,11 @@
       bots: Array.isArray(saved.bots) ? saved.bots : clone(DEFAULTS.bots),
     };
   }
-  function saveConfig(cfg) { try { GM_setValue('config', cfg); } catch (e) {} }
+  function saveConfig(cfg) {
+    try {
+      GM_setValue('config', cfg);
+    } catch (_e) {}
+  }
 
   let config = loadConfig();
 
@@ -102,8 +150,11 @@
     return bots
       .map((b) => ({ b, hay: (b.login + ' ' + (b.name || '')).toLowerCase() }))
       .filter((x) => x.hay.includes(q))
-      .sort((a, z) => (z.b.login.toLowerCase().startsWith(q) ? 1 : 0) -
-                      (a.b.login.toLowerCase().startsWith(q) ? 1 : 0))
+      .sort(
+        (a, z) =>
+          (z.b.login.toLowerCase().startsWith(q) ? 1 : 0) -
+          (a.b.login.toLowerCase().startsWith(q) ? 1 : 0),
+      )
       .slice(0, config.maxResults)
       .map((x) => x.b);
   }
@@ -139,9 +190,13 @@
       'padding:4px 8px;cursor:pointer;box-sizing:border-box;width:100%;';
 
     const img = document.createElement('img');
-    img.width = 20; img.height = 20;
+    img.width = 20;
+    img.height = 20;
     img.style.cssText = 'width:20px;height:20px;border-radius:50%;flex:0 0 auto;';
-    img.onerror = () => { img.onerror = null; img.src = DEFAULT_AVATAR; };
+    img.onerror = () => {
+      img.onerror = null;
+      img.src = DEFAULT_AVATAR;
+    };
     img.src = bot.avatar || DEFAULT_AVATAR;
     li.appendChild(img);
 
@@ -153,18 +208,26 @@
     if (bot.name) {
       const name = document.createElement('span');
       name.textContent = bot.name;
-      name.style.cssText = 'flex:0 1 auto;min-width:0;opacity:.6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+      name.style.cssText =
+        'flex:0 1 auto;min-width:0;opacity:.6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
       li.appendChild(name);
     }
     if (config.showBadge) {
       const badge = document.createElement('span');
       badge.textContent = 'bot';
-      badge.style.cssText = 'flex:0 0 auto;margin-left:auto;font-size:11px;line-height:1.4;opacity:.55;border:1px solid currentColor;border-radius:4px;padding:0 4px;';
+      badge.style.cssText =
+        'flex:0 0 auto;margin-left:auto;font-size:11px;line-height:1.4;opacity:.55;border:1px solid currentColor;border-radius:4px;padding:0 4px;';
       li.appendChild(badge);
     }
 
-    li.addEventListener('mousedown', (e) => { e.preventDefault(); insertMention(bot); });
-    li.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); });
+    li.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      insertMention(bot);
+    });
+    li.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    });
     return li;
   }
 
@@ -178,7 +241,9 @@
 
     existing.forEach((n) => n.remove());
     if (!desired.length) return;
-    const sample = menu.querySelector('[role="option"]:not([data-gh-bot]), li.suggestion:not([data-gh-bot])');
+    const sample = menu.querySelector(
+      '[role="option"]:not([data-gh-bot]), li.suggestion:not([data-gh-bot])',
+    );
     const sampleClass = sample ? sample.className : '';
     desired.forEach((bot) => menu.appendChild(buildItem(bot, sampleClass)));
   }
@@ -193,10 +258,16 @@
   const schedule = () => {
     if (scheduled) return;
     scheduled = true;
-    requestAnimationFrame(() => { scheduled = false; sweep(); });
+    requestAnimationFrame(() => {
+      scheduled = false;
+      sweep();
+    });
   };
 
-  new MutationObserver(schedule).observe(document.documentElement, { childList: true, subtree: true });
+  new MutationObserver(schedule).observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+  });
   document.addEventListener('input', schedule, true);
 
   // ────────────────────────────────────────────────────────────────────────
@@ -271,7 +342,9 @@
 
     function mkInput(key, val, ph) {
       const i = document.createElement('input');
-      i.dataset.k = key; i.value = val || ''; i.placeholder = ph;
+      i.dataset.k = key;
+      i.value = val || '';
+      i.placeholder = ph;
       return i;
     }
     function addRow(bot = { login: '', name: '', avatar: '' }) {
@@ -279,14 +352,20 @@
       row.className = 'row';
       const img = document.createElement('img');
       img.className = 'ava';
-      img.onerror = () => { img.src = DEFAULT_AVATAR; };
+      img.onerror = () => {
+        img.src = DEFAULT_AVATAR;
+      };
       img.src = bot.avatar || DEFAULT_AVATAR;
       const login = mkInput('login', bot.login, 'login');
       const name = mkInput('name', bot.name, 'display name (optional)');
       const avatar = mkInput('avatar', bot.avatar, 'avatar URL (optional)');
-      avatar.addEventListener('input', () => { img.src = avatar.value || DEFAULT_AVATAR; });
+      avatar.addEventListener('input', () => {
+        img.src = avatar.value || DEFAULT_AVATAR;
+      });
       const del = document.createElement('button');
-      del.className = 'del'; del.textContent = '✕'; del.title = 'Remove';
+      del.className = 'del';
+      del.textContent = '✕';
+      del.title = 'Remove';
       del.addEventListener('click', () => row.remove());
       row.append(img, login, name, avatar, del);
       botsWrap.appendChild(row);
@@ -296,10 +375,12 @@
     $('.add').addEventListener('click', () => addRow());
 
     function collect() {
-      const bots = [...botsWrap.querySelectorAll('.row')].map((row) => {
-        const g = (k) => row.querySelector(`[data-k="${k}"]`).value.trim();
-        return { login: g('login').replace(/^@/, ''), name: g('name'), avatar: g('avatar') };
-      }).filter((b) => b.login);
+      const bots = [...botsWrap.querySelectorAll('.row')]
+        .map((row) => {
+          const g = (k) => row.querySelector(`[data-k="${k}"]`).value.trim();
+          return { login: g('login').replace(/^@/, ''), name: g('name'), avatar: g('avatar') };
+        })
+        .filter((b) => b.login);
       return {
         maxResults: Math.max(1, Math.min(25, parseInt($('[data-s="maxResults"]').value, 10) || 8)),
         showOnEmpty: $('[data-s="showOnEmpty"]').checked,
@@ -324,7 +405,9 @@
       saveConfig(config);
       close();
     });
-    root.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+    root.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') close();
+    });
   }
 
   if (typeof GM_registerMenuCommand === 'function') {

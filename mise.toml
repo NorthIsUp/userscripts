@@ -1,0 +1,7 @@
+[tools]
+hk = "1.39.0"
+pkl = "latest"
+biome = "latest"
+
+[tasks.pre-commit]
+run = "hk run pre-commit"

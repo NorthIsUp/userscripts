@@ -1,0 +1,29 @@
+amends "package://github.com/jdx/hk/releases/download/v1.39.0/hk@1.39.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.39.0/hk@1.39.0#/Builtins.pkl"
+
+local linters = new Mapping<String, Step> {
+    // biome = formatter + linter in one binary. Handles *.user.js
+    // (biome keys on the final .js extension).
+    // Via `mise exec` so biome resolves inside the git hook's plain shell,
+    // where mise isn't activated and biome isn't on PATH.
+    ["biome"] {
+        glob = "*.user.js"
+        check = "mise exec -- biome check {{ files }}"
+        fix = "mise exec -- biome check --write {{ files }}"
+    }
+}
+
+hooks {
+    ["pre-commit"] {
+        fix = true
+        stash = "git"
+        steps = linters
+    }
+    ["fix"] {
+        fix = true
+        steps = linters
+    }
+    ["check"] {
+        steps = linters
+    }
+}

@@ -26,7 +26,8 @@
 
   function promptUsername() {
     const next = window.prompt('Okta username to autofill:', username);
-    if (next !== null) {                 // null = user hit Cancel
+    if (next !== null) {
+      // null = user hit Cancel
       username = next.trim();
       GM_setValue('oktaUsername', username);
       console.log('Okta username set to:', username || '(empty)');
@@ -44,7 +45,7 @@
   function setValue(el, value) {
     const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value')?.set;
     setter ? setter.call(el, value) : (el.value = value);
-    el.dispatchEvent(new Event('input',  { bubbles: true }));
+    el.dispatchEvent(new Event('input', { bubbles: true }));
     el.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
@@ -52,7 +53,7 @@
   function tryIdentifier() {
     if (identifierDone || !username) return;
     const field = document.querySelector('input[name="identifier"]');
-    const next  = document.querySelector('.o-form-button-bar input[type="submit"]');
+    const next = document.querySelector('.o-form-button-bar input[type="submit"]');
     if (!field || !next) return;
 
     if (field.value !== username) setValue(field, username);
