@@ -14,6 +14,7 @@ Tampermonkey pulls future changes automatically (on a `@version` bump).
 | [graphite-open-in-github](https://raw.githubusercontent.com/NorthIsUp/userscripts/main/graphite-open-in-github.user.js) | "Open in GitHub" button on Graphite PR rows |
 | [deny-geolocation](https://raw.githubusercontent.com/NorthIsUp/userscripts/main/deny-geolocation.user.js) | Auto-deny geolocation prompts, per-site allowlist |
 | [okta-autofill-fastpass](https://raw.githubusercontent.com/NorthIsUp/userscripts/main/okta-autofill-fastpass.user.js) | Autofill Okta username + click FastPass |
+| [haproxy-stats-emojis](https://raw.githubusercontent.com/NorthIsUp/userscripts/main/haproxy-stats-emojis.user.js) | 🟢/🔴 health emojis on HAProxy stats section headers |
 
 ## Dev
 
