@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Code Helpers — GitHub @-mention Bots
 // @namespace    https://askclara.com/userscripts
-// @version      1.1.0
+// @version      1.2.0
 // @description  Adds configurable "bots" to the @-mention autocomplete on GitHub, with a config panel + storage.
 // @icon                data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2248%22%20height=%2248%22%20viewBox=%220%200%2048%2048%22%3E%3Cstyle%3E:root%7B--fill:%23000%7D@media%20(prefers-color-scheme:dark)%7B:root%7B--fill:%23fff%7D%7D%3C/style%3E%3Cpath%20fill=%22var(--fill)%22%20d=%22M24%201.9a21.6%2021.6%200%200%200-6.8%2042.2c1%20.2%201.8-.9%201.8-1.8v-2.9c-6%201.3-7.9-2.9-7.9-2.9a6.5%206.5%200%200%200-2.2-3.2c-2-1.4.1-1.3.1-1.3a4.3%204.3%200%200%201%203.3%202c1.7%202.9%205.5%202.6%206.7%202.1a5.4%205.4%200%200%201%20.5-2.9C12.7%2032%209%2028%209%2022.6a10.7%2010.7%200%200%201%202.9-7.6%206.2%206.2%200%200%201%20.3-6.4%208.9%208.9%200%200%201%206.4%202.9%2015.1%2015.1%200%200%201%205.4-.8%2017.1%2017.1%200%200%201%205.4.7%209%209%200%200%201%206.4-2.8%206.5%206.5%200%200%201%20.4%206.4%2010.7%2010.7%200%200%201%202.8%207.6c0%205.4-3.7%209.4-10.5%2010.6a5.4%205.4%200%200%201%20.5%202.9v6.2a1.8%201.8%200%200%200%201.9%201.8A21.7%2021.7%200%200%200%2024%201.9Z%22/%3E%3C/svg%3E
 // @icon64              data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2264%22%20height=%2264%22%20viewBox=%220%200%2048%2048%22%3E%3Cstyle%3E:root%7B--fill:%23000%7D@media%20(prefers-color-scheme:dark)%7B:root%7B--fill:%23fff%7D%7D%3C/style%3E%3Cpath%20fill=%22var(--fill)%22%20d=%22M24%201.9a21.6%2021.6%200%200%200-6.8%2042.2c1%20.2%201.8-.9%201.8-1.8v-2.9c-6%201.3-7.9-2.9-7.9-2.9a6.5%206.5%200%200%200-2.2-3.2c-2-1.4.1-1.3.1-1.3a4.3%204.3%200%200%201%203.3%202c1.7%202.9%205.5%202.6%206.7%202.1a5.4%205.4%200%200%201%20.5-2.9C12.7%2032%209%2028%209%2022.6a10.7%2010.7%200%200%201%202.9-7.6%206.2%206.2%200%200%201%20.3-6.4%208.9%208.9%200%200%201%206.4%202.9%2015.1%2015.1%200%200%201%205.4-.8%2017.1%2017.1%200%200%201%205.4.7%209%209%200%200%201%206.4-2.8%206.5%206.5%200%200%201%20.4%206.4%2010.7%2010.7%200%200%201%202.8%207.6c0%205.4-3.7%209.4-10.5%2010.6a5.4%205.4%200%200%201%20.5%202.9v6.2a1.8%201.8%200%200%200%201.9%201.8A21.7%2021.7%200%200%200%2024%201.9Z%22/%3E%3C/svg%3E
@@ -31,16 +31,17 @@
     showBadge: true,     // small "bot" tag on the right of each entry
     bots: [
       ...CUSTOM_BOTS,
-      { login: 'claude',          name: 'Claude Code — Anthropic',  avatar: 'https://github.com/anthropics.png' },
-      { login: 'copilot',         name: 'GitHub Copilot',           avatar: 'https://github.com/github.png' },
-      { login: 'coderabbitai',    name: 'CodeRabbit — AI review',   avatar: 'https://github.com/coderabbitai.png' },
-      { login: 'dependabot',      name: 'Dependabot',               avatar: 'https://github.com/dependabot.png' },
-      { login: 'renovate',        name: 'Renovate',                 avatar: 'https://github.com/renovatebot.png' },
-      { login: 'github-actions',  name: 'GitHub Actions',           avatar: 'https://github.com/github.png' },
-      { login: 'codecov',         name: 'Codecov',                  avatar: 'https://github.com/codecov.png' },
-      { login: 'sonarcloud',      name: 'SonarCloud',               avatar: 'https://github.com/SonarSource.png' },
-      { login: 'sentry-io',       name: 'Sentry',                   avatar: 'https://github.com/getsentry.png' },
-      { login: 'allcontributors', name: 'All Contributors',         avatar: 'https://github.com/all-contributors.png' },
+      { login: 'claude',          name: 'Claude Code — Anthropic',  avatar: 'https://avatars.githubusercontent.com/u/81847?v=4' },
+      { login: 'copilot',         name: 'GitHub Copilot',           avatar: 'https://avatars.githubusercontent.com/u/9919?v=4' },
+      { login: 'coderabbitai',    name: 'CodeRabbit — AI review',   avatar: 'https://avatars.githubusercontent.com/in/347564?v=4' },
+      { login: 'greptile',        name: 'Greptile — AI review',     avatar: 'https://avatars.githubusercontent.com/u/161434094?v=4' },
+      { login: 'dependabot',      name: 'Dependabot',               avatar: 'https://avatars.githubusercontent.com/in/29110?v=4' },
+      { login: 'renovate',        name: 'Renovate',                 avatar: 'https://avatars.githubusercontent.com/u/38656520?v=4' },
+      { login: 'github-actions',  name: 'GitHub Actions',           avatar: 'https://avatars.githubusercontent.com/u/9919?v=4' },
+      { login: 'codecov',         name: 'Codecov',                  avatar: 'https://avatars.githubusercontent.com/in/254?v=4' },
+      { login: 'sonarcloud',      name: 'SonarCloud',               avatar: 'https://avatars.githubusercontent.com/u/39168408?v=4' },
+      { login: 'sentry-io',       name: 'Sentry',                   avatar: 'https://avatars.githubusercontent.com/u/114699524?v=4' },
+      { login: 'allcontributors', name: 'All Contributors',         avatar: 'https://avatars.githubusercontent.com/u/46410174?v=4' },
     ],
   };
 
@@ -74,13 +75,12 @@
   let config = loadConfig();
 
   // ── injected-row styling ──────────────────────────────────────────────────
+  // Layout is applied inline per-element in buildItem() so GitHub's option CSS
+  // can't override it. This only supplies a mouse-hover background as a fallback
+  // for cases where the copied native highlight class doesn't cover :hover.
   const style = document.createElement('style');
   style.textContent = `
-    [data-gh-bot]{display:flex;align-items:center;gap:8px;padding:4px 8px;cursor:pointer;}
-    [data-gh-bot]:hover{background:rgba(128,128,128,.15);}
-    [data-gh-bot] .gh-bot-login{font-weight:600;}
-    [data-gh-bot] .gh-bot-name{opacity:.6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-    [data-gh-bot] .gh-bot-badge{margin-left:auto;font-size:11px;opacity:.55;border:1px solid currentColor;border-radius:4px;padding:0 4px;}
+    li[data-gh-bot]:hover{background:rgba(128,128,128,.15);}
   `;
   (document.head || document.documentElement).appendChild(style);
 
@@ -129,33 +129,37 @@
     const li = document.createElement('li');
     li.setAttribute('role', 'option');
     li.setAttribute('aria-selected', 'false');
-    if (sampleClass) li.className = sampleClass;
+    if (sampleClass) li.className = sampleClass; // inherit native highlight bg only
     li.dataset.value = '@' + bot.login;
     li.dataset.ghBot = '';
     li.dataset.botLogin = bot.login;
+    // Layout set inline so GitHub's own option-class CSS can't override it.
+    li.style.cssText =
+      'display:flex;flex-direction:row;align-items:center;gap:8px;' +
+      'padding:4px 8px;cursor:pointer;box-sizing:border-box;width:100%;';
 
     const img = document.createElement('img');
     img.width = 20; img.height = 20;
-    img.style.cssText = 'border-radius:50%;flex:0 0 auto;';
+    img.style.cssText = 'width:20px;height:20px;border-radius:50%;flex:0 0 auto;';
     img.onerror = () => { img.onerror = null; img.src = DEFAULT_AVATAR; };
     img.src = bot.avatar || DEFAULT_AVATAR;
     li.appendChild(img);
 
     const login = document.createElement('span');
-    login.className = 'gh-bot-login';
     login.textContent = bot.login;
+    login.style.cssText = 'font-weight:600;flex:0 0 auto;white-space:nowrap;';
     li.appendChild(login);
 
     if (bot.name) {
       const name = document.createElement('span');
-      name.className = 'gh-bot-name';
       name.textContent = bot.name;
+      name.style.cssText = 'flex:0 1 auto;min-width:0;opacity:.6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
       li.appendChild(name);
     }
     if (config.showBadge) {
       const badge = document.createElement('span');
-      badge.className = 'gh-bot-badge';
       badge.textContent = 'bot';
+      badge.style.cssText = 'flex:0 0 auto;margin-left:auto;font-size:11px;line-height:1.4;opacity:.55;border:1px solid currentColor;border-radius:4px;padding:0 4px;';
       li.appendChild(badge);
     }
 
