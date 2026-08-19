@@ -11,7 +11,7 @@ Tampermonkey pulls future changes automatically (on a `@version` bump).
 | [github-mention-bots](https://raw.githubusercontent.com/NorthIsUp/userscripts/main/github-mention-bots.user.js) | Configurable bots in GitHub's @-mention autocomplete |
 | [github-tokens-link](https://raw.githubusercontent.com/NorthIsUp/userscripts/main/github-tokens-link.user.js) | "Tokens" link under Settings in the GitHub user menu |
 | [github-open-in-graphite](https://raw.githubusercontent.com/NorthIsUp/userscripts/main/github-open-in-graphite.user.js) | "Open in Graphite" icon on GitHub PR headers |
-| [github-pr-submit-review](https://raw.githubusercontent.com/NorthIsUp/userscripts/main/github-pr-submit-review.user.js) | "Submit review" dialog button on the PR header, next to Code |
+| [github-pr-submit-review](https://raw.githubusercontent.com/NorthIsUp/userscripts/main/github-pr-submit-review.user.js) | Review actions (approve / comment / request changes / close) on the PR header |
 | [graphite-open-in-github](https://raw.githubusercontent.com/NorthIsUp/userscripts/main/graphite-open-in-github.user.js) | "Open in GitHub" button on Graphite PR rows |
 | [deny-geolocation](https://raw.githubusercontent.com/NorthIsUp/userscripts/main/deny-geolocation.user.js) | Auto-deny geolocation prompts, per-site allowlist |
 | [okta-autofill-fastpass](https://raw.githubusercontent.com/NorthIsUp/userscripts/main/okta-autofill-fastpass.user.js) | Autofill Okta username + click FastPass |
