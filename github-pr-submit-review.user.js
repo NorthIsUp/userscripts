@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CodeHelpers: GitHub PR — Submit Review Button
 // @namespace    https://github.com/
-// @version      4.0.0
+// @version      4.1.0
 // @description  Review actions next to Code on the PR page — approve, approve/reject/comment with a note, close — all driving GitHub's own review dialog.
 // @match        https://github.com/*/*/pull/*
 // @grant        none
@@ -208,7 +208,7 @@
     // Clone the live Code button: Primer's class hashes change per release, and
     // cloneNode drops React's listeners so ours is the only handler.
     var btn = code.cloneNode(true);
-    btn.setAttribute(MARKER, action ? action.key : 'submit');
+    btn.setAttribute(MARKER, action.key);
     btn.type = 'button';
     btn.removeAttribute('id');
     btn.removeAttribute('popovertarget');
@@ -221,20 +221,12 @@
     for (var v = 0; v < visuals.length; v++) visuals[v].remove();
 
     var label = btn.querySelector('[data-component=text]') || btn;
-    if (action) {
-      btn.title = action.title;
-      btn.setAttribute('aria-label', action.title);
-      label.innerHTML = action.html;
-      btn.addEventListener('click', function () {
-        action.run(p);
-      });
-    } else {
-      btn.setAttribute('data-variant', 'primary');
-      label.textContent = 'Submit review';
-      btn.addEventListener('click', function () {
-        compose(p, 'comment', 'comment');
-      });
-    }
+    btn.title = action.title;
+    btn.setAttribute('aria-label', action.title);
+    label.innerHTML = action.html;
+    btn.addEventListener('click', function () {
+      action.run(p);
+    });
     return btn;
   }
 
@@ -255,9 +247,6 @@
     if (code.parentElement.querySelector('[' + MARKER + ']')) return;
 
     var after = code;
-    var main = makeButton(code, p, null);
-    code.parentElement.insertBefore(main, after.nextSibling);
-    after = main;
     for (var a = 0; a < ACTIONS.length; a++) {
       var btn = makeButton(code, p, ACTIONS[a]);
       code.parentElement.insertBefore(btn, after.nextSibling);
