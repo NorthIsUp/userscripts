@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CodeHelpers: GitHub PR — Submit Review Button
 // @namespace    https://github.com/
-// @version      4.1.0
+// @version      4.2.0
 // @description  Review actions next to Code on the PR page — approve, approve/reject/comment with a note, close — all driving GitHub's own review dialog.
 // @match        https://github.com/*/*/pull/*
 // @grant        none
@@ -16,6 +16,7 @@
   'use strict';
 
   var MARKER = 'data-pr-submit-review';
+  var ROW = 'data-pr-submit-review-row';
   var NATIVE = 'button[class*="ReviewMenuButton-module"]';
   // Only for the full-load fallback below; cleared on read so it can't loop.
   var FLAG = 'pr-submit-review-open';
@@ -244,14 +245,22 @@
       }
     }
     if (!code || !code.parentElement) return;
-    if (code.parentElement.querySelector('[' + MARKER + ']')) return;
+    if (document.querySelector('[' + ROW + ']')) return;
 
-    var after = code;
+    // Own row under Ready to merge / Code: the header strip is nowrap, so a
+    // full-basis child is what makes it break to a second line.
+    var actions = code.parentElement.parentElement || code.parentElement;
+    actions.style.flexWrap = 'wrap';
+    var row = document.createElement('div');
+    row.setAttribute(ROW, 'true');
+    row.className = 'd-flex gap-2';
+    row.style.flexBasis = '100%';
+    row.style.justifyContent = 'flex-end';
+    row.style.marginTop = '8px';
     for (var a = 0; a < ACTIONS.length; a++) {
-      var btn = makeButton(code, p, ACTIONS[a]);
-      code.parentElement.insertBefore(btn, after.nextSibling);
-      after = btn;
+      row.appendChild(makeButton(code, p, ACTIONS[a]));
     }
+    actions.appendChild(row);
   }
 
   function resumeAfterReload() {
