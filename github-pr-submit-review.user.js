@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         CodeHelpers: GitHub PR — Submit Review Button
 // @namespace    https://github.com/
-// @version      3.0.0
-// @description  "Submit review" button next to Code on the PR page — opens GitHub's own Finish-your-review dialog.
+// @version      4.0.0
+// @description  Review actions next to Code on the PR page — approve, approve/reject/comment with a note, close — all driving GitHub's own review dialog.
 // @match        https://github.com/*/*/pull/*
 // @grant        none
 // @run-at       document-end
@@ -20,6 +20,27 @@
   // Only for the full-load fallback below; cleared on read so it can't loop.
   var FLAG = 'pr-submit-review-open';
 
+  // Octicon paths, lifted from the rendered page so they match GitHub's own icons.
+  var CHECK =
+    'M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z';
+  var EX =
+    'M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.749.749 0 0 1 1.275.326.749.749 0 0 1-.215.734L9.06 8l3.22 3.22a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L8 9.06l-3.22 3.22a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z';
+  var COMMENT =
+    'M1 2.75C1 1.784 1.784 1 2.75 1h10.5c.966 0 1.75.784 1.75 1.75v7.5A1.75 1.75 0 0 1 13.25 12H9.06l-2.573 2.573A1.458 1.458 0 0 1 4 13.543V12H2.75A1.75 1.75 0 0 1 1 10.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h2a.75.75 0 0 1 .75.75v2.19l2.72-2.72a.749.749 0 0 1 .53-.22h4.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z';
+  var CLOSED =
+    'M3.25 1A2.25 2.25 0 0 1 4 5.372v5.256a2.251 2.251 0 1 1-1.5 0V5.372A2.251 2.251 0 0 1 3.25 1Zm9.5 5.5a.75.75 0 0 1 .75.75v3.378a2.251 2.251 0 1 1-1.5 0V7.25a.75.75 0 0 1 .75-.75Zm-2.03-5.273a.75.75 0 0 1 1.06 0l.97.97.97-.97a.748.748 0 0 1 1.265.332.75.75 0 0 1-.205.729l-.97.97.97.97a.751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018l-.97-.97-.97.97a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734l.97-.97-.97-.97a.75.75 0 0 1 0-1.06ZM2.5 3.25a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0ZM3.25 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm9.5 0a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Z';
+
+  function icon(path, color) {
+    return (
+      '<svg class="octicon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" ' +
+      'viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" style="color:var(--fgColor-' +
+      color +
+      ');vertical-align:text-bottom"><path d="' +
+      path +
+      '"></path></svg>'
+    );
+  }
+
   function pr() {
     var m = location.pathname.match(/^\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
     return m && { base: '/' + m[1] + '/' + m[2] + '/pull/' + m[3], number: m[3] };
@@ -29,39 +50,195 @@
     return /\/(files|changes)(\/|$)/.test(location.pathname);
   }
 
-  function whenNative(fn) {
+  function poll(get, fn) {
     var tries = 0;
-    (function poll() {
-      var btn = document.querySelector(NATIVE);
-      if (btn) return fn(btn);
-      if (tries++ < 40) setTimeout(poll, 250);
+    (function next() {
+      var found = get();
+      if (found) return fn(found);
+      if (tries++ < 40) setTimeout(next, 250);
     })();
   }
 
-  function diffTabLink() {
+  function linkTo(re) {
     var links = document.querySelectorAll('a[href]');
     for (var i = 0; i < links.length; i++) {
-      if (/\/(files|changes)$/.test(links[i].getAttribute('href') || '')) return links[i];
+      if (re.test(links[i].getAttribute('href') || '')) return links[i];
+    }
+    return null;
+  }
+
+  function reviewDialog() {
+    var found = document.querySelectorAll('dialog,[role=dialog]');
+    for (var i = 0; i < found.length; i++) {
+      if (/Finish your review/.test(found[i].textContent || '')) return found[i];
     }
     return null;
   }
 
   // The review UI only mounts on the diff route and React unmounts it when you leave,
-  // so a copied node is dead — hop routes client-side and click GitHub's own button.
-  function openReview(p) {
-    var tab = diffTabLink();
+  // so a copied node is dead — hop routes client-side and drive GitHub's own dialog.
+  function withDialog(p, key, fn) {
+    function openIt() {
+      poll(
+        function () {
+          return document.querySelector(NATIVE);
+        },
+        function (btn) {
+          btn.click();
+          poll(reviewDialog, fn);
+        },
+      );
+    }
+    if (onDiffRoute()) return openIt();
+    var tab = linkTo(/\/(files|changes)$/);
     if (tab) {
       tab.click();
-      whenNative(function (btn) {
-        btn.click();
-      });
-      return;
+      return openIt();
     }
-    sessionStorage.setItem(FLAG, p.number);
+    sessionStorage.setItem(FLAG, p.number + '|' + key);
     location.assign(p.base + '/changes');
   }
 
-  function addButton() {
+  function chooseEvent(dialog, value) {
+    var radios = dialog.querySelectorAll('input[type=radio]');
+    for (var i = 0; i < radios.length; i++) {
+      if (radios[i].value === value) {
+        radios[i].click();
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function dialogSubmit(dialog) {
+    var buttons = dialog.querySelectorAll('button');
+    for (var i = 0; i < buttons.length; i++) {
+      if (/^Submit review/.test((buttons[i].textContent || '').trim())) return buttons[i];
+    }
+    return null;
+  }
+
+  // Type-then-submit actions stop at the open dialog; GitHub keeps Submit disabled
+  // until there's a body anyway, and ⌘↵ finishes from the textarea.
+  function compose(p, key, event) {
+    withDialog(p, key, function (dialog) {
+      chooseEvent(dialog, event);
+      var textarea = dialog.querySelector('textarea');
+      if (textarea) textarea.focus();
+    });
+  }
+
+  function approveNow(p) {
+    if (!confirm('Approve this pull request?')) return;
+    withDialog(p, 'approve', function (dialog) {
+      chooseEvent(dialog, 'approve');
+      poll(
+        function () {
+          var btn = dialogSubmit(dialog);
+          return btn && !btn.disabled ? btn : null;
+        },
+        function (btn) {
+          btn.click();
+        },
+      );
+    });
+  }
+
+  function nativeClose() {
+    var buttons = document.querySelectorAll('button');
+    for (var i = 0; i < buttons.length; i++) {
+      var text = (buttons[i].textContent || '').trim();
+      if (/^Close pull request$/.test(text) && buttons[i].getClientRects().length)
+        return buttons[i];
+    }
+    return null;
+  }
+
+  function closePR(p) {
+    if (!confirm('Close this pull request?')) return;
+    var btn = nativeClose();
+    if (btn) return btn.click();
+    var conv = linkTo(new RegExp(p.base.replace(/\//g, '\\/') + '$'));
+    if (conv) conv.click();
+    poll(nativeClose, function (found) {
+      found.click();
+    });
+  }
+
+  var ACTIONS = [
+    {
+      key: 'approve',
+      title: 'Approve',
+      html: icon(CHECK, 'success'),
+      run: approveNow,
+    },
+    {
+      key: 'approve-comment',
+      title: 'Approve with comment',
+      html: icon(CHECK, 'success') + icon(COMMENT, 'muted'),
+      run: function (p) {
+        compose(p, 'approve-comment', 'approve');
+      },
+    },
+    {
+      key: 'request-changes',
+      title: 'Request changes with comment',
+      html: icon(EX, 'danger') + icon(COMMENT, 'muted'),
+      run: function (p) {
+        compose(p, 'request-changes', 'request changes');
+      },
+    },
+    {
+      key: 'comment',
+      title: 'Comment',
+      html: icon(COMMENT, 'muted'),
+      run: function (p) {
+        compose(p, 'comment', 'comment');
+      },
+    },
+    {
+      key: 'close',
+      title: 'Close pull request',
+      html: icon(CLOSED, 'danger'),
+      run: closePR,
+    },
+  ];
+
+  function makeButton(code, p, action) {
+    // Clone the live Code button: Primer's class hashes change per release, and
+    // cloneNode drops React's listeners so ours is the only handler.
+    var btn = code.cloneNode(true);
+    btn.setAttribute(MARKER, action ? action.key : 'submit');
+    btn.type = 'button';
+    btn.removeAttribute('id');
+    btn.removeAttribute('popovertarget');
+    btn.removeAttribute('aria-expanded');
+    btn.removeAttribute('aria-haspopup');
+    // Drop Code's icon and dropdown caret — these open dialogs, not menus.
+    var visuals = btn.querySelectorAll(
+      '[data-component=leadingVisual],[data-component=trailingVisual],[data-component=trailingAction]',
+    );
+    for (var v = 0; v < visuals.length; v++) visuals[v].remove();
+
+    var label = btn.querySelector('[data-component=text]') || btn;
+    if (action) {
+      btn.title = action.title;
+      btn.setAttribute('aria-label', action.title);
+      label.innerHTML = action.html;
+      btn.addEventListener('click', function () {
+        action.run(p);
+      });
+    } else {
+      btn.setAttribute('data-variant', 'primary');
+      label.textContent = 'Submit review';
+      btn.addEventListener('click', function () {
+        compose(p, 'comment', 'comment');
+      });
+    }
+    return btn;
+  }
+
+  function addButtons() {
     var p = pr();
     if (!p || onDiffRoute()) return;
     if (document.querySelector(NATIVE)) return;
@@ -77,42 +254,31 @@
     if (!code || !code.parentElement) return;
     if (code.parentElement.querySelector('[' + MARKER + ']')) return;
 
-    // Clone the live Code button: Primer's class hashes change per release, and
-    // cloneNode drops React's listeners so ours is the only handler.
-    var btn = code.cloneNode(true);
-    btn.setAttribute(MARKER, 'true');
-    btn.type = 'button';
-    btn.setAttribute('data-variant', 'primary');
-    btn.removeAttribute('id');
-    btn.removeAttribute('popovertarget');
-    btn.removeAttribute('aria-expanded');
-    btn.removeAttribute('aria-haspopup');
-    // Drop Code's icon and its dropdown caret — this button opens a dialog, not a menu.
-    var visuals = btn.querySelectorAll(
-      '[data-component=leadingVisual],[data-component=trailingVisual],[data-component=trailingAction]',
-    );
-    for (var v = 0; v < visuals.length; v++) visuals[v].remove();
-    var label = btn.querySelector('[data-component=text]') || btn;
-    label.textContent = 'Submit review';
-    btn.addEventListener('click', function () {
-      openReview(p);
-    });
-
-    code.parentElement.insertBefore(btn, code.nextSibling);
+    var after = code;
+    var main = makeButton(code, p, null);
+    code.parentElement.insertBefore(main, after.nextSibling);
+    after = main;
+    for (var a = 0; a < ACTIONS.length; a++) {
+      var btn = makeButton(code, p, ACTIONS[a]);
+      code.parentElement.insertBefore(btn, after.nextSibling);
+      after = btn;
+    }
   }
 
   function resumeAfterReload() {
     var p = pr();
-    if (!p || sessionStorage.getItem(FLAG) !== p.number) return;
+    var flag = p && sessionStorage.getItem(FLAG);
+    if (!flag || flag.split('|')[0] !== p.number) return;
     sessionStorage.removeItem(FLAG);
-    whenNative(function (btn) {
-      btn.click();
-    });
+    var key = flag.split('|')[1];
+    for (var i = 0; i < ACTIONS.length; i++) {
+      if (ACTIONS[i].key === key) return ACTIONS[i].run(p);
+    }
   }
 
   function tick() {
     try {
-      addButton();
+      addButtons();
     } catch (e) {
       console.error('[pr-submit-review]', e);
     }
