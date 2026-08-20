@@ -145,22 +145,20 @@
   }
 
   // GitHub refuses self review events; grey ours out rather than let the dialog dance
-  // run and fail. Header meta ("<login> wants to merge …") is the one author string
-  // that survived the React rewrite.
+  // run and fail. The header's author link is gone in the React PR page, so fall back
+  // to the document title ("<subject> by <login> · Pull Request #N").
   var selfCache = {};
+  function prAuthor() {
+    var link = document.querySelector('a.author');
+    if (link) return (link.textContent || '').trim();
+    var m = document.title.match(/ by ([\w.-]+) \u00b7 Pull Request #\d+/);
+    return m && m[1];
+  }
+
   function isSelfPR() {
     if (location.pathname in selfCache) return selfCache[location.pathname];
     var meta = document.querySelector('meta[name="user-login"]');
-    var me = meta && meta.content;
-    var self = false;
-    if (me) {
-      var link = document.querySelector(
-        '.gh-header-meta a.author, [data-testid="issue-header"] a.author',
-      );
-      self = link
-        ? (link.textContent || '').trim() === me
-        : new RegExp('(^|\\s)' + me + ' wants to merge').test(document.body.textContent || '');
-    }
+    var self = !!(meta && meta.content) && prAuthor() === meta.content;
     selfCache[location.pathname] = self;
     return self;
   }
