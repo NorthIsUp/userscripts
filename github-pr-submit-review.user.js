@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CodeHelpers: GitHub PR — Submit Review Button
 // @namespace    https://github.com/
-// @version      4.2.0
+// @version      4.3.0
 // @description  Review actions next to Code on the PR page — approve, approve/reject/comment with a note, close — all driving GitHub's own review dialog.
 // @match        https://github.com/*/*/pull/*
 // @grant        none
@@ -130,7 +130,6 @@
   }
 
   function approveNow(p) {
-    if (!confirm('Approve this pull request?')) return;
     withDialog(p, 'approve', function (dialog) {
       chooseEvent(dialog, 'approve');
       poll(
@@ -143,6 +142,27 @@
         },
       );
     });
+  }
+
+  // GitHub refuses self review events; grey ours out rather than let the dialog dance
+  // run and fail. Header meta ("<login> wants to merge …") is the one author string
+  // that survived the React rewrite.
+  var selfCache = {};
+  function isSelfPR() {
+    if (location.pathname in selfCache) return selfCache[location.pathname];
+    var meta = document.querySelector('meta[name="user-login"]');
+    var me = meta && meta.content;
+    var self = false;
+    if (me) {
+      var link = document.querySelector(
+        '.gh-header-meta a.author, [data-testid="issue-header"] a.author',
+      );
+      self = link
+        ? (link.textContent || '').trim() === me
+        : new RegExp('(^|\\s)' + me + ' wants to merge').test(document.body.textContent || '');
+    }
+    selfCache[location.pathname] = self;
+    return self;
   }
 
   function nativeClose() {
@@ -169,12 +189,14 @@
   var ACTIONS = [
     {
       key: 'approve',
+      review: true,
       title: 'Approve',
       html: icon(CHECK, 'success'),
       run: approveNow,
     },
     {
       key: 'approve-comment',
+      review: true,
       title: 'Approve with comment',
       html: icon(CHECK, 'success') + icon(COMMENT, 'muted'),
       run: function (p) {
@@ -183,6 +205,7 @@
     },
     {
       key: 'request-changes',
+      review: true,
       title: 'Request changes with comment',
       html: icon(EX, 'danger') + icon(COMMENT, 'muted'),
       run: function (p) {
@@ -222,12 +245,19 @@
     for (var v = 0; v < visuals.length; v++) visuals[v].remove();
 
     var label = btn.querySelector('[data-component=text]') || btn;
-    btn.title = action.title;
-    btn.setAttribute('aria-label', action.title);
+    var blocked = action.review && isSelfPR();
+    btn.title = blocked ? action.title + " — can't review your own PR" : action.title;
+    btn.setAttribute('aria-label', btn.title);
     label.innerHTML = action.html;
-    btn.addEventListener('click', function () {
-      action.run(p);
-    });
+    if (blocked) {
+      btn.disabled = true;
+      btn.style.opacity = '.5';
+      btn.style.cursor = 'not-allowed';
+    } else {
+      btn.addEventListener('click', function () {
+        action.run(p);
+      });
+    }
     return btn;
   }
 
