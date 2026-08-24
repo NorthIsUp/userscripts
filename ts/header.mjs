@@ -1,0 +1,37 @@
+import { atSize, icons } from './icons.mjs';
+import { branch, repo } from './scripts.mjs';
+
+const PAD = 13;
+
+function line(key, value) {
+  return `// @${key.padEnd(PAD)}${value}`;
+}
+
+/** @param {import("./scripts.mjs").ScriptDef} def */
+export function buildHeader(def) {
+  // Release assets, not raw files: this URL always resolves to the newest
+  // release, so a version bump needs no header edit and no branch pinning.
+  const url = `https://github.com/${repo}/releases/latest/download/${def.file}.user.js`;
+  const icon = def.icon ? icons[def.icon] : null;
+  // Only worth a second directive when the artwork actually rescales.
+  const icon64 = icon && atSize(icon, 64) !== icon ? atSize(icon, 64) : null;
+  const rows = [
+    line('name', def.name),
+    // namespace: null keeps the directive out entirely (it is half of a
+    // userscript manager's identity for a script, so it must stay byte-stable).
+    ...(def.namespace === null ? [] : [line('namespace', def.namespace ?? 'https://github.com/')]),
+    line('version', def.version),
+    line('description', def.description),
+    ...(def.author ? [line('author', def.author)] : []),
+    ...(icon ? [line('icon', icon)] : []),
+    ...(icon64 ? [line('icon64', icon64)] : []),
+    ...def.match.map((m) => line('match', m)),
+    ...(def.require ?? []).map((r) => line('require', r)),
+    line('run-at', def.runAt),
+    ...(def.grant ?? ['none']).map((g) => line('grant', g)),
+    ...(def.noframes ? [line('noframes', '').trimEnd()] : []),
+    line('updateURL', url),
+    line('downloadURL', url),
+  ];
+  return ['// ==UserScript==', ...rows, '// ==/UserScript==', ''].join('\n');
+}

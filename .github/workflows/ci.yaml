@@ -1,0 +1,48 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ts
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ts/package-lock.json
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+      # The .user.js files at the repo root are build output that is committed so
+      # raw.githubusercontent.com keeps serving installs. Drift means someone
+      # hand-edited a generated file.
+      - name: built scripts match the committed ones
+        working-directory: .
+        run: git diff --exit-code -- '*.user.js'
+
+      # Assets land at a stable URL that never needs bumping:
+      # https://github.com/<repo>/releases/latest/download/<script>.user.js
+      - name: release
+        if: github.ref == 'refs/heads/main'
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="v${{ github.run_number }}"
+          gh release create "$tag" ./*.user.js \
+            --title "$tag" \
+            --notes "Built from ${{ github.sha }}." \
+            --latest
