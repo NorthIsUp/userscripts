@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CodeHelpers: GitHub PR — Submit Review Button
 // @namespace    https://github.com/
-// @version      4.4.0
+// @version      4.5.0
 // @description  Review actions next to Code on the PR page — approve, approve/reject/comment with a note, close — all driving GitHub's own review dialog.
 // @match        https://github.com/*/*/pull/*
 // @grant        none
@@ -170,6 +170,16 @@
     return /^(open|draft|merged|closed)$/.test(text) ? text : null;
   }
 
+  function blockedReason(action) {
+    if (action.review && isSelfPR()) return "can't review your own PR";
+    var state = prState();
+    if (state === 'merged' || state === 'closed') {
+      // Reviews still submit after a merge, but only a comment is worth offering.
+      if (action.key !== 'comment') return 'PR is ' + state;
+    }
+    return null;
+  }
+
   function nativeClose() {
     var buttons = document.querySelectorAll('button');
     for (var i = 0; i < buttons.length; i++) {
@@ -250,8 +260,8 @@
     for (var v = 0; v < visuals.length; v++) visuals[v].remove();
 
     var label = btn.querySelector('[data-component=text]') || btn;
-    var blocked = action.review && isSelfPR();
-    btn.title = blocked ? action.title + " — can't review your own PR" : action.title;
+    var blocked = blockedReason(action);
+    btn.title = blocked ? action.title + ' — ' + blocked : action.title;
     btn.setAttribute('aria-label', btn.title);
     label.innerHTML = action.html;
     if (blocked) {
@@ -269,13 +279,6 @@
   function addButtons() {
     var p = pr();
     if (!p || onDiffRoute()) return;
-
-    var state = prState();
-    if (state === 'merged' || state === 'closed') {
-      var done = document.querySelector('[' + ROW + ']');
-      if (done) done.remove();
-      return;
-    }
     if (document.querySelector(NATIVE)) return;
 
     // The Code label also appears in collapsed menus; only the rendered one has a box.
@@ -287,14 +290,19 @@
       }
     }
     if (!code || !code.parentElement) return;
-    if (document.querySelector('[' + ROW + ']')) return;
+    var stateNow = prState() || 'unknown';
+    var existing = document.querySelector('[' + ROW + ']');
+    if (existing) {
+      if (existing.getAttribute(ROW) === stateNow) return;
+      existing.remove();
+    }
 
     // Own row under Ready to merge / Code: the header strip is nowrap, so a
     // full-basis child is what makes it break to a second line.
     var actions = code.parentElement.parentElement || code.parentElement;
     actions.style.flexWrap = 'wrap';
     var row = document.createElement('div');
-    row.setAttribute(ROW, 'true');
+    row.setAttribute(ROW, stateNow);
     row.className = 'd-flex gap-2';
     row.style.flexBasis = '100%';
     row.style.justifyContent = 'flex-end';
