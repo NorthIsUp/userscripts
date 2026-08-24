@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         CodeHelpers: GitHub PR — Submit Review Button
+// @name         Code Helpers: GitHub PR — Submit Review Button
 // @namespace    https://github.com/
-// @version      4.6.0
+// @version      4.6.1
 // @description  Review actions next to Code on the PR page — approve, approve/reject/comment with a note, close — all driving GitHub's own review dialog.
 // @match        https://github.com/*/*/pull/*
 // @grant        none
