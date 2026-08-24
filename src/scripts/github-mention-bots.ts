@@ -26,7 +26,7 @@ import type { ScriptMeta } from '../lib/meta';
 
 export const meta: ScriptMeta = {
   name: 'Code Helpers — GitHub @-mention Bots',
-  version: '3.2.0',
+  version: '3.2.1',
   description:
     'Adds configurable "bots" to the @-mention autocomplete on GitHub, with a config panel + storage.',
   match: ['https://github.com/*'],

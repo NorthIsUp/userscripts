@@ -2,7 +2,7 @@ import type { ScriptMeta } from '../lib/meta';
 
 export const meta: ScriptMeta = {
   name: 'Deny Geolocation',
-  version: '0.2.1',
+  version: '0.2.2',
   description: 'Sites asking for location get an instant PERMISSION_DENIED, no prompt.',
   match: ['*://*/*'],
   runAt: 'document-start',

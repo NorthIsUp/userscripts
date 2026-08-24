@@ -2,7 +2,7 @@ import type { ScriptMeta } from '../lib/meta';
 
 export const meta: ScriptMeta = {
   name: 'Okta autofill + FastPass — teamclara',
-  version: '2.1.1',
+  version: '2.1.2',
   description: 'Fills username + "Keep me signed in" + Next, then clicks FastPass when it appears',
   match: ['https://teamclara.okta.com/*', 'https://*.okta.com/*'],
   runAt: 'document-idle',

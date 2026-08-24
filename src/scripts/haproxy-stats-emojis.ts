@@ -2,7 +2,7 @@ import type { ScriptMeta } from '../lib/meta';
 
 export const meta: ScriptMeta = {
   name: 'HAProxy Stats: Section Header Emojis',
-  version: '1.0.1',
+  version: '1.0.2',
   description: 'Add 🟢/🔴 to HAProxy proxy headers based on server row health in that section',
   match: ['http://haproxy.tailf01e20.ts.net:8404/*'],
   runAt: 'document-idle',

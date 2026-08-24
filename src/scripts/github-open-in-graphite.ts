@@ -4,7 +4,7 @@ import type { ScriptMeta } from '../lib/meta';
 
 export const meta: ScriptMeta = {
   name: 'Code Helpers: GitHub PR — Open in Graphite',
-  version: '1.8.2',
+  version: '1.8.3',
   description:
     'Adds an "Open in Graphite" icon link next to the copy-branch button in the PR header.',
   match: ['https://github.com/*/*/pull/*'],
