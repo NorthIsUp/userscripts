@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CodeHelpers: GitHub PR — Submit Review Button
 // @namespace    https://github.com/
-// @version      4.3.0
+// @version      4.4.0
 // @description  Review actions next to Code on the PR page — approve, approve/reject/comment with a note, close — all driving GitHub's own review dialog.
 // @match        https://github.com/*/*/pull/*
 // @grant        none
@@ -163,6 +163,13 @@
     return self;
   }
 
+  // Header state pill, live across an in-page merge; unknown text fails open.
+  function prState() {
+    var pill = document.querySelector('[data-testid="header-state"], .gh-header .State');
+    var text = pill && (pill.textContent || '').trim().toLowerCase();
+    return /^(open|draft|merged|closed)$/.test(text) ? text : null;
+  }
+
   function nativeClose() {
     var buttons = document.querySelectorAll('button');
     for (var i = 0; i < buttons.length; i++) {
@@ -262,6 +269,13 @@
   function addButtons() {
     var p = pr();
     if (!p || onDiffRoute()) return;
+
+    var state = prState();
+    if (state === 'merged' || state === 'closed') {
+      var done = document.querySelector('[' + ROW + ']');
+      if (done) done.remove();
+      return;
+    }
     if (document.querySelector(NATIVE)) return;
 
     // The Code label also appears in collapsed menus; only the rendered one has a box.
