@@ -1,5 +1,14 @@
 import { observeDom } from '../lib/dom';
+import type { ScriptMeta } from '../lib/meta';
 
+export const meta: ScriptMeta = {
+  name: 'Code Helpers: Graphite — Open in GitHub',
+  version: '1.0.1',
+  description: 'Adds an "Open in GitHub" button to the current PR row in Graphite\'s stack view.',
+  match: ['https://app.graphite.com/*'],
+  runAt: 'document-end',
+  icon: 'graphite',
+};
 const MARKER = 'data-github-link';
 // GitHub mark, viewBox 0 0 48 48 (same artwork as the script's @icon).
 const GH_PATH =

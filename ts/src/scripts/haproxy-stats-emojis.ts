@@ -1,3 +1,14 @@
+import type { ScriptMeta } from '../lib/meta';
+
+export const meta: ScriptMeta = {
+  name: 'HAProxy Stats: Section Header Emojis',
+  version: '1.0.1',
+  description: 'Add 🟢/🔴 to HAProxy proxy headers based on server row health in that section',
+  match: ['http://haproxy.tailf01e20.ts.net:8404/*'],
+  runAt: 'document-idle',
+  namespace: 'https://maxcare.ai/',
+};
+
 const DEAD_ROW_SELECTOR = 'tr.active_down, tr.backup_down';
 const LIVE_ROW_SELECTOR = 'tr.active_up, tr.backup_up, tr.active_going_up, tr.active_going_down';
 

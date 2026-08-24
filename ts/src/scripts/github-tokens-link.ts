@@ -1,3 +1,16 @@
+import type { ScriptMeta } from '../lib/meta';
+
+export const meta: ScriptMeta = {
+  name: 'Code Helpers: GitHub — Quick API Tokens Link',
+  version: '1.4.1',
+  description:
+    'Adds a "Tokens" link directly under "Settings" in the GitHub user menu, using the code octicon to match the Developer settings sidebar entry.',
+  match: ['https://github.com/*'],
+  runAt: 'document-idle',
+  icon: 'github',
+  author: 'NorthIsUp',
+};
+
 const TOKENS_URL = '/settings/tokens';
 const ITEM_MARKER = 'data-tokens-link-item';
 

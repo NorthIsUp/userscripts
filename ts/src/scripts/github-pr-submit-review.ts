@@ -1,6 +1,16 @@
 import { findByText, observeDom, octicon, poll } from '../lib/dom';
 import { currentUser, type PullRequest, parsePr } from '../lib/github';
+import type { ScriptMeta } from '../lib/meta';
 
+export const meta: ScriptMeta = {
+  name: 'Code Helpers: GitHub PR — Submit Review Button',
+  version: '4.6.2',
+  description:
+    "Review actions next to Code on the PR page — approve, approve/reject/comment with a note, close — all driving GitHub's own review dialog.",
+  match: ['https://github.com/*/*/pull/*'],
+  runAt: 'document-end',
+  icon: 'github',
+};
 const MARKER = 'data-pr-submit-review';
 const ROW = 'data-pr-submit-review-row';
 const NATIVE = 'button[class*="ReviewMenuButton-module"]';

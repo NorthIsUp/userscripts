@@ -1,5 +1,6 @@
 import { atSize, icons } from './icons.mjs';
-import { repo } from './scripts.mjs';
+
+const repo = 'NorthIsUp/userscripts';
 
 const PAD = 13;
 
@@ -7,7 +8,7 @@ function line(key, value) {
   return `// @${key.padEnd(PAD)}${value}`;
 }
 
-/** @param {import("./scripts.mjs").ScriptDef} def */
+/** @param {{ file: string } & import("./src/lib/meta").ScriptMeta} def */
 export function buildHeader(def) {
   // Release assets, not raw files: this URL always resolves to the newest
   // release, so a version bump needs no header edit and no branch pinning.
