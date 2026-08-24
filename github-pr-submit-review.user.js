@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CodeHelpers: GitHub PR — Submit Review Button
 // @namespace    https://github.com/
-// @version      4.5.0
+// @version      4.6.0
 // @description  Review actions next to Code on the PR page — approve, approve/reject/comment with a note, close — all driving GitHub's own review dialog.
 // @match        https://github.com/*/*/pull/*
 // @grant        none
@@ -191,7 +191,6 @@
   }
 
   function closePR(p) {
-    if (!confirm('Close this pull request?')) return;
     var btn = nativeClose();
     if (btn) return btn.click();
     var conv = linkTo(new RegExp(p.base.replace(/\//g, '\\/') + '$'));
