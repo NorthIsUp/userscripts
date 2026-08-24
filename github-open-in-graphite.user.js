@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         CodeHelpers: GitHub PR — Open in Graphite
+// @name         Code Helpers: GitHub PR — Open in Graphite
 // @namespace    https://github.com/
-// @version      1.8.0
+// @version      1.8.1
 // @description  Adds an "Open in Graphite" icon link next to the copy-branch button in the PR header.
 // @match        https://github.com/*/*/pull/*
 // @grant        none
