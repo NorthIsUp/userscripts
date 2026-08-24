@@ -20,6 +20,11 @@ userscript manager pulls future versions on its own (whenever `@version` rises).
 | [okta-autofill-fastpass](https://github.com/NorthIsUp/userscripts/releases/latest/download/okta-autofill-fastpass.user.js) | Autofill Okta username + click FastPass |
 | [haproxy-stats-emojis](https://github.com/NorthIsUp/userscripts/releases/latest/download/haproxy-stats-emojis.user.js) | 🟢/🔴 health emojis on HAProxy stats section headers |
 
+The `*.user.js` files at the repo root are a temporary bridge: they carry the
+new release-asset `@updateURL`, so installs that still update from
+`raw.githubusercontent.com/.../main/` migrate themselves on their next check.
+Delete them once every install has moved over.
+
 ## Layout
 
 ```
