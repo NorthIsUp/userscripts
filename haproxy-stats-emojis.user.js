@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HAProxy Stats: Section Header Emojis
 // @namespace    https://maxcare.ai/
-// @version      1.0
+// @version      1.0.1
 // @description  Add 🟢/🔴 to HAProxy proxy headers based on server row health in that section
 // @match        http://haproxy.tailf01e20.ts.net:8404/*
 // @run-at       document-idle

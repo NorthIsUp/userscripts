@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Code Helpers: Graphite — Open in GitHub
 // @namespace    https://github.com/
-// @version      1.0.0
+// @version      1.0.1
 // @description  Adds an "Open in GitHub" button to the current PR row in Graphite's stack view.
 // @icon         data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2248%22%20height=%2248%22%20viewBox=%220%200%2028%2028%22%3E%3Cstyle%3E:root%7B--fill:%23000%7D@media%20(prefers-color-scheme:dark)%7B:root%7B--fill:%23fff%7D%7D%3C/style%3E%3Cpath%20fill=%22var(--fill)%22%20d=%22m20.704%207.123-9.27-2.484-6.788%206.793%202.482%209.276%209.27%202.484%206.788-6.793-2.482-9.276Z%22%3E%3C/path%3E%3Cpath%20fill=%22var(--fill)%22%20d=%22M17.644%200%203.73%203.729%200%2017.644l10.187%2010.187%2013.915-3.729%203.73-13.915L17.643%200Zm2.27%2024.312H7.917L1.92%2013.915%207.917%203.518h11.997l5.998%2010.397-5.998%2010.397Z%22%3E%3C/path%3E%3C/svg%3E
 // @icon64       data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2264%22%20height=%2264%22%20viewBox=%220%200%2028%2028%22%3E%3Cstyle%3E:root%7B--fill:%23000%7D@media%20(prefers-color-scheme:dark)%7B:root%7B--fill:%23fff%7D%7D%3C/style%3E%3Cpath%20fill=%22var(--fill)%22%20d=%22m20.704%207.123-9.27-2.484-6.788%206.793%202.482%209.276%209.27%202.484%206.788-6.793-2.482-9.276Z%22%3E%3C/path%3E%3Cpath%20fill=%22var(--fill)%22%20d=%22M17.644%200%203.73%203.729%200%2017.644l10.187%2010.187%2013.915-3.729%203.73-13.915L17.643%200Zm2.27%2024.312H7.917L1.92%2013.915%207.917%203.518h11.997l5.998%2010.397-5.998%2010.397Z%22%3E%3C/path%3E%3C/svg%3E

@@ -1,15 +1,17 @@
 // ==UserScript==
 // @name         Code Helpers — GitHub @-mention Bots
 // @namespace    https://askclara.com/userscripts
-// @version      3.1.0
+// @version      3.2.0
 // @description  Adds configurable "bots" to the @-mention autocomplete on GitHub, with a config panel + storage.
 // @author       NorthIsUp
 // @icon         data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2248%22%20height=%2248%22%20viewBox=%220%200%2048%2048%22%3E%3Cstyle%3E:root%7B--fill:%23000%7D@media%20(prefers-color-scheme:dark)%7B:root%7B--fill:%23fff%7D%7D%3C/style%3E%3Cpath%20fill=%22var(--fill)%22%20d=%22M24%201.9a21.6%2021.6%200%200%200-6.8%2042.2c1%20.2%201.8-.9%201.8-1.8v-2.9c-6%201.3-7.9-2.9-7.9-2.9a6.5%206.5%200%200%200-2.2-3.2c-2-1.4.1-1.3.1-1.3a4.3%204.3%200%200%201%203.3%202c1.7%202.9%205.5%202.6%206.7%202.1a5.4%205.4%200%200%201%20.5-2.9C12.7%2032%209%2028%209%2022.6a10.7%2010.7%200%200%201%202.9-7.6%206.2%206.2%200%200%201%20.3-6.4%208.9%208.9%200%200%201%206.4%202.9%2015.1%2015.1%200%200%201%205.4-.8%2017.1%2017.1%200%200%201%205.4.7%209%209%200%200%201%206.4-2.8%206.5%206.5%200%200%201%20.4%206.4%2010.7%2010.7%200%200%201%202.8%207.6c0%205.4-3.7%209.4-10.5%2010.6a5.4%205.4%200%200%201%20.5%202.9v6.2a1.8%201.8%200%200%200%201.9%201.8A21.7%2021.7%200%200%200%2024%201.9Z%22/%3E%3C/svg%3E
 // @icon64       data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2264%22%20height=%2264%22%20viewBox=%220%200%2048%2048%22%3E%3Cstyle%3E:root%7B--fill:%23000%7D@media%20(prefers-color-scheme:dark)%7B:root%7B--fill:%23fff%7D%7D%3C/style%3E%3Cpath%20fill=%22var(--fill)%22%20d=%22M24%201.9a21.6%2021.6%200%200%200-6.8%2042.2c1%20.2%201.8-.9%201.8-1.8v-2.9c-6%201.3-7.9-2.9-7.9-2.9a6.5%206.5%200%200%200-2.2-3.2c-2-1.4.1-1.3.1-1.3a4.3%204.3%200%200%201%203.3%202c1.7%202.9%205.5%202.6%206.7%202.1a5.4%205.4%200%200%201%20.5-2.9C12.7%2032%209%2028%209%2022.6a10.7%2010.7%200%200%201%202.9-7.6%206.2%206.2%200%200%201%20.3-6.4%208.9%208.9%200%200%201%206.4%202.9%2015.1%2015.1%200%200%201%205.4-.8%2017.1%2017.1%200%200%201%205.4.7%209%209%200%200%201%206.4-2.8%206.5%206.5%200%200%201%20.4%206.4%2010.7%2010.7%200%200%201%202.8%207.6c0%205.4-3.7%209.4-10.5%2010.6a5.4%205.4%200%200%201%20.5%202.9v6.2a1.8%201.8%200%200%200%201.9%201.8A21.7%2021.7%200%200%200%2024%201.9Z%22/%3E%3C/svg%3E
 // @match        https://github.com/*
 // @run-at       document-idle
-// @grant        GM_getValue
-// @grant        GM_setValue
+// @grant        GM.getValue
+// @grant        GM.setValue
+// @grant        GM.deleteValue
+// @grant        GM.listValues
 // @grant        GM_registerMenuCommand
 // @updateURL    https://github.com/NorthIsUp/userscripts/releases/latest/download/github-mention-bots.user.js
 // @downloadURL  https://github.com/NorthIsUp/userscripts/releases/latest/download/github-mention-bots.user.js
@@ -17,6 +19,711 @@
 
 (function () {
   'use strict';
+
+  var __defProp = Object.defineProperty;
+  var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+  var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
+  function abtoa(buf) {
+    return btoa(
+      new Uint8Array(buf).reduce((data, byte) => data + String.fromCharCode(byte), "")
+    );
+  }
+  function atoab(str) {
+    return Uint8Array.from(atob(str), (c) => c.charCodeAt(0));
+  }
+  async function compress(input, compressionFormat, outputType = "string") {
+    var _a;
+    const byteArray = input instanceof Uint8Array ? input : new TextEncoder().encode((_a = input == null ? void 0 : input.toString()) != null ? _a : String(input));
+    const comp = new CompressionStream(compressionFormat);
+    const writer = comp.writable.getWriter();
+    writer.write(byteArray);
+    writer.close();
+    const uintArr = new Uint8Array(await new Response(comp.readable).arrayBuffer());
+    return outputType === "arrayBuffer" ? uintArr : abtoa(uintArr);
+  }
+  async function decompress(input, compressionFormat, outputType = "string") {
+    var _a;
+    const byteArray = input instanceof Uint8Array ? input : atoab((_a = input == null ? void 0 : input.toString()) != null ? _a : String(input));
+    const decomp = new DecompressionStream(compressionFormat);
+    const writer = decomp.writable.getWriter();
+    writer.write(byteArray);
+    writer.close();
+    const uintArr = new Uint8Array(await new Response(decomp.readable).arrayBuffer());
+    return outputType === "arrayBuffer" ? uintArr : new TextDecoder().decode(uintArr);
+  }
+  var DatedError = class extends Error {
+    constructor(message, options) {
+      super(message, options);
+      __publicField(this, "date");
+      this.name = this.constructor.name;
+      this.date = /* @__PURE__ */ new Date();
+    }
+  };
+  var MigrationError = class extends DatedError {
+    constructor(message, options) {
+      super(message, options);
+      this.name = "MigrationError";
+    }
+  };
+  var createNanoEvents = () => ({
+    emit(event, ...args) {
+      for (let callbacks = this.events[event] || [], i = 0, length = callbacks.length; i < length; i++) {
+        callbacks[i](...args);
+      }
+    },
+    events: {},
+    on(event, cb) {
+      var _a;
+      ((_a = this.events)[event] || (_a[event] = [])).push(cb);
+      return () => {
+        var _a2;
+        this.events[event] = (_a2 = this.events[event]) == null ? void 0 : _a2.filter((i) => cb !== i);
+      };
+    }
+  });
+  var PicoEmitter = class {
+    /**
+     * ⚠️ You cannot instantiate `PicoEmitter` directly, it's only meant for extending in your own classes. If you want a standalone emitter, use `NanoEmitter` instead.
+     */
+    constructor(options = {}) {
+      /**
+       * The nanoevents emitter instance used internally.  
+       * ⚠️ You should use the protected method `emitEvent()` instead of emitting directly through this, as it updates the catch-up memory for any events listed in `catchUpEvents`. Only use `this.events.emit()` if you're not using `catchUpEvents` or are doing manual memory management.
+       */
+      __publicField(this, "events", createNanoEvents());
+      __publicField(this, "eventUnsubscribes", []);
+      __publicField(this, "emitterOptions");
+      /** Stores the latest arguments for each emitted event that's listed in `catchUpEvents`. */
+      __publicField(this, "catchUpMemory", /* @__PURE__ */ new Map());
+      this.emitterOptions = {
+        ...options
+      };
+    }
+    //#region emitEvent
+    /**
+     * Emits an event on this instance.  
+     * You should use this over `this.events.emit()` in subclasses as it updates the catch-up memory for any event listed in `catchUpEvents`, so that listeners attached after emitting can still receive the latest value.
+     */
+    emitEvent(event, ...args) {
+      var _a;
+      if ((_a = this.emitterOptions.catchUpEvents) == null ? void 0 : _a.includes(event))
+        this.catchUpMemory.set(event, args);
+      this.events.emit(event, ...args);
+    }
+    //#region on
+    /**
+     * Subscribes to an event and calls the callback when it's emitted.  
+     * If the event has already been emitted and is listed in `catchUpEvents`, the callback will be called immediately with the latest emitted arguments (catch-up behaviour).
+     * @param event The event to subscribe to. Use `as "_"` in case your event names aren't thoroughly typed (like when using a template literal, e.g. \`event-${val}\` as "_")
+     * @returns Returns a function that can be called to unsubscribe the event listener
+     * @example ```ts
+     * const emitter = new PicoEmitter<{
+     *   foo: (bar: string) => void;
+     * }>({
+     *   publicEmit: true,
+     * });
+     * 
+     * let i = 0;
+     * const unsub = emitter.on("foo", (bar) => {
+     *   // unsubscribe after 10 events:
+     *   if(++i === 10) unsub();
+     *   console.log(bar);
+     * });
+     * 
+     * emitter.emit("foo", "bar");
+     * ```
+     */
+    on(event, cb) {
+      let unsub;
+      const unsubProxy = () => {
+        if (!unsub)
+          return;
+        unsub();
+        this.eventUnsubscribes = this.eventUnsubscribes.filter((u) => u !== unsub);
+      };
+      unsub = this.events.on(event, cb);
+      this.eventUnsubscribes.push(unsub);
+      const memory = this.catchUpMemory.get(event);
+      if (memory)
+        cb(...memory);
+      return unsubProxy;
+    }
+    //#region once
+    /**
+     * Subscribes to an event and calls the callback or resolves the Promise only once when it's emitted.  
+     * If the event has already been emitted and is listed in `catchUpEvents`, the callback will be called immediately with the latest emitted arguments (catch-up behaviour).
+     * @param event The event to subscribe to. Use `as "_"` in case your event names aren't thoroughly typed (like when using a template literal, e.g. \`event-${val}\` as "_")
+     * @param cb The callback to call when the event is emitted - if provided or not, the returned Promise will resolve with the event arguments
+     * @returns Returns a Promise that resolves with the event arguments when the event is emitted
+     * @example ```ts
+     * const emitter = new PicoEmitter<{
+     *   foo: (bar: string) => void;
+     * }>();
+     * 
+     * // Promise syntax:
+     * const [bar] = await emitter.once("foo");
+     * console.log(bar);
+     * 
+     * // Callback syntax:
+     * emitter.once("foo", (bar) => console.log(bar));
+     * ```
+     */
+    once(event, cb) {
+      const memory = this.catchUpMemory.get(event);
+      if (memory) {
+        const args = memory;
+        cb == null ? void 0 : cb(...args);
+        return Promise.resolve(args);
+      }
+      return new Promise((resolve) => {
+        let unsub;
+        const onceProxy = ((...args) => {
+          cb == null ? void 0 : cb(...args);
+          unsub == null ? void 0 : unsub();
+          resolve(args);
+        });
+        unsub = this.events.on(event, onceProxy);
+        this.eventUnsubscribes.push(unsub);
+      });
+    }
+    //#region onMulti
+    /**
+     * Allows subscribing to multiple events and calling the callback only when one of, all of, or a subset of the events are emitted, either continuously or only once.  
+     * If any of the events have already been emitted and are listed in `catchUpEvents`, the callback will be called immediately if the criteria are met, with the latest emitted arguments (catch-up behaviour).
+     * @param options An object or array of objects with the following properties:  
+     * `callback` (required) is the function that will be called when the conditions are met.  
+     *   
+     * Set `once` to true to call the callback only once for the first event (or set of events) that match the criteria, then stop listening.  
+     * If `signal` is provided, the subscription will be canceled when the given signal is aborted.  
+     *   
+     * If `oneOf` is used, the callback will be called when any of the matching events are emitted.  
+     * If `allOf` is used, the callback will be called after all of the matching events are emitted at least once, then any time any of them are emitted.  
+     * If both `oneOf` and `allOf` are used together, the callback will be called when any of the `oneOf` events are emitted AND all of the `allOf` events have been emitted at least once.  
+     * At least one of `oneOf` or `allOf` must be provided.  
+     *   
+     * @returns Returns a function that can be called to unsubscribe all listeners created by this call. Alternatively, pass an `AbortSignal` to all options objects to achieve the same effect or for finer control.
+     */
+    onMulti(options) {
+      const allUnsubs = [];
+      const unsubAll = () => {
+        for (const unsub of allUnsubs)
+          unsub();
+        allUnsubs.splice(0, allUnsubs.length);
+        this.eventUnsubscribes = this.eventUnsubscribes.filter((u) => !allUnsubs.includes(u));
+      };
+      for (const opts of Array.isArray(options) ? options : [options]) {
+        const optsWithDefaults = {
+          allOf: [],
+          oneOf: [],
+          once: false,
+          ...opts
+        };
+        const {
+          oneOf,
+          allOf,
+          once,
+          signal,
+          callback
+        } = optsWithDefaults;
+        if (signal == null ? void 0 : signal.aborted)
+          return unsubAll;
+        if (oneOf.length === 0 && allOf.length === 0)
+          throw new TypeError("PicoEmitter.onMulti(): Either `oneOf` or `allOf` or both must be provided in the options");
+        const curEvtUnsubs = [];
+        const checkUnsubAllEvt = (force = false) => {
+          if (!(signal == null ? void 0 : signal.aborted) && !force)
+            return;
+          for (const unsub of curEvtUnsubs)
+            unsub();
+          curEvtUnsubs.splice(0, curEvtUnsubs.length);
+          this.eventUnsubscribes = this.eventUnsubscribes.filter((u) => !curEvtUnsubs.includes(u));
+        };
+        const allOfEmitted = /* @__PURE__ */ new Set();
+        const allOfConditionMet = () => allOf.length === 0 || allOfEmitted.size === allOf.length;
+        for (const event of oneOf) {
+          const unsub = this.events.on(event, ((...args) => {
+            checkUnsubAllEvt();
+            if (allOfConditionMet()) {
+              callback(event, ...args);
+              if (once)
+                checkUnsubAllEvt(true);
+            }
+          }));
+          curEvtUnsubs.push(unsub);
+        }
+        for (const event of allOf) {
+          const unsub = this.events.on(event, ((...args) => {
+            checkUnsubAllEvt();
+            allOfEmitted.add(event);
+            if (allOfConditionMet() && (oneOf.length === 0 || oneOf.includes(event))) {
+              callback(event, ...args);
+              if (once)
+                checkUnsubAllEvt(true);
+            }
+          }));
+          curEvtUnsubs.push(unsub);
+        }
+        allUnsubs.push(() => checkUnsubAllEvt(true));
+      }
+      return unsubAll;
+    }
+    //#region unsubscribeAll
+    /** Unsubscribes all event listeners from this instance. Also clears the event catch-up memory. */
+    unsubscribeAll() {
+      for (const unsub of this.eventUnsubscribes)
+        unsub();
+      this.eventUnsubscribes = [];
+      this.catchUpMemory.clear();
+    }
+  };
+  var NanoEmitter = class extends PicoEmitter {
+    /** Creates a new instance of NanoEmitter - a lightweight event emitter with helper methods and a strongly typed event map */
+    constructor(options = {}) {
+      super(options);
+      __publicField(this, "events", createNanoEvents());
+      __publicField(this, "eventUnsubscribes", []);
+      __publicField(this, "emitterOptions");
+      /** Stores the last arguments for each event listed in `catchUpEvents` */
+      __publicField(this, "catchUpMemory", /* @__PURE__ */ new Map());
+      this.emitterOptions = {
+        publicEmit: false,
+        ...options
+      };
+    }
+    //#region emit
+    /**
+     * Emits an event on this instance.  
+     * - ⚠️ Needs `publicEmit` to be set to true in the NanoEmitter constructor or super() call!
+     * @param event The event to emit
+     * @param args The arguments to pass to the event listeners
+     * @returns Returns true if `publicEmit` is true and the event was emitted successfully
+     */
+    emit(event, ...args) {
+      if (this.emitterOptions.publicEmit) {
+        this.emitEvent(event, ...args);
+        return true;
+      }
+      return false;
+    }
+    //#region unsubscribeAll
+    /** Unsubscribes all event listeners from this instance. Also clears the event catch-up memory. */
+    unsubscribeAll() {
+      super.unsubscribeAll();
+    }
+  };
+  var dsFmtVer = 1;
+  var DataStore = class extends NanoEmitter {
+    //#region constructor
+    /**
+     * Creates an instance of DataStore to manage a sync & async database that is cached in memory and persistently saved across sessions.  
+     * Supports migrating data from older versions to newer ones and populating the cache with default data if no persistent data is found.  
+     *   
+     * - ⚠️ Make sure to call {@linkcode loadData()} at least once after creating an instance, or the returned data will be the same as `options.defaultData`
+     * 
+     * @template TData The type of the data that is saved in persistent storage for the currently set format version (will be automatically inferred from `defaultData` if not provided) - **This has to be a JSON-compatible object!** (no undefined, circular references, etc.)
+     * @param opts The options for this DataStore instance
+     */
+    constructor(opts) {
+      var _a, _b, _c;
+      super(opts.nanoEmitterOptions);
+      __publicField(this, "id");
+      __publicField(this, "formatVersion");
+      __publicField(this, "defaultData");
+      __publicField(this, "encodeData");
+      __publicField(this, "decodeData");
+      __publicField(this, "compressionFormat", "deflate-raw");
+      __publicField(this, "memoryCache");
+      __publicField(this, "engine");
+      __publicField(this, "keyPrefix");
+      __publicField(this, "options");
+      /**
+       * Whether all first-init checks should be done.  
+       * This includes migrating the internal DataStore format, migrating data from the UserUtils format, and anything similar.  
+       * This is set to `true` by default. Create a subclass and set it to `false` before calling {@linkcode loadData()} if you want to explicitly skip these checks.
+       */
+      __publicField(this, "firstInit", true);
+      /** In-memory cached copy of the data that is saved in persistent storage used for synchronous read access. */
+      __publicField(this, "cachedData");
+      __publicField(this, "migrations");
+      __publicField(this, "migrateIds", []);
+      this.id = opts.id;
+      this.formatVersion = opts.formatVersion;
+      this.defaultData = opts.defaultData;
+      this.memoryCache = (_a = opts.memoryCache) != null ? _a : true;
+      this.cachedData = this.memoryCache ? opts.defaultData : {};
+      this.migrations = opts.migrations;
+      if (opts.migrateIds)
+        this.migrateIds = Array.isArray(opts.migrateIds) ? opts.migrateIds : [opts.migrateIds];
+      this.engine = typeof opts.engine === "function" ? opts.engine() : opts.engine;
+      this.keyPrefix = (_b = opts.keyPrefix) != null ? _b : "__ds-";
+      this.options = opts;
+      if ("encodeData" in opts && "decodeData" in opts && Array.isArray(opts.encodeData) && Array.isArray(opts.decodeData)) {
+        this.encodeData = [opts.encodeData[0], opts.encodeData[1]];
+        this.decodeData = [opts.decodeData[0], opts.decodeData[1]];
+        this.compressionFormat = (_c = opts.encodeData[0]) != null ? _c : null;
+      } else if (opts.compressionFormat === null) {
+        this.encodeData = void 0;
+        this.decodeData = void 0;
+        this.compressionFormat = null;
+      } else {
+        const fmt = typeof opts.compressionFormat === "string" ? opts.compressionFormat : "deflate-raw";
+        this.compressionFormat = fmt;
+        this.encodeData = [fmt, async (data) => await compress(data, fmt, "string")];
+        this.decodeData = [fmt, async (data) => await decompress(data, fmt, "string")];
+      }
+      this.engine.setDataStoreOptions({
+        id: this.id,
+        encodeData: this.encodeData,
+        decodeData: this.decodeData
+      });
+    }
+    //#region loadData
+    /**
+     * Loads the data saved in persistent storage into the in-memory cache and also returns a copy of it.  
+     * Automatically populates persistent storage with default data if it doesn't contain any data yet.  
+     * Also runs all necessary migration functions if the data format has changed since the last time the data was saved.
+     */
+    async loadData() {
+      var _a;
+      try {
+        if (this.firstInit) {
+          this.firstInit = false;
+          const dsVer = Number(await this.engine.getValue("__ds_fmt_ver", 0));
+          const oldData = await this.engine.getValue(`_uucfg-${this.id}`, null);
+          if (oldData) {
+            const oldVer = Number(await this.engine.getValue(`_uucfgver-${this.id}`, NaN));
+            const oldEnc = await this.engine.getValue(`_uucfgenc-${this.id}`, null);
+            const promises = [];
+            const migrateFmt = (oldKey, newKey, value) => {
+              promises.push(this.engine.setValue(newKey, value));
+              promises.push(this.engine.deleteValue(oldKey));
+            };
+            migrateFmt(`_uucfg-${this.id}`, `${this.keyPrefix}${this.id}-dat`, oldData);
+            if (!isNaN(oldVer))
+              migrateFmt(`_uucfgver-${this.id}`, `${this.keyPrefix}${this.id}-ver`, oldVer);
+            if (typeof oldEnc === "boolean" || oldEnc === "true" || oldEnc === "false" || typeof oldEnc === "number" || oldEnc === "0" || oldEnc === "1")
+              migrateFmt(`_uucfgenc-${this.id}`, `${this.keyPrefix}${this.id}-enf`, [0, "0", true, "true"].includes(oldEnc) ? (_a = this.compressionFormat) != null ? _a : null : null);
+            else {
+              promises.push(this.engine.setValue(`${this.keyPrefix}${this.id}-enf`, this.compressionFormat));
+              promises.push(this.engine.deleteValue(`_uucfgenc-${this.id}`));
+            }
+            await Promise.allSettled(promises);
+          }
+          if (isNaN(dsVer) || dsVer < dsFmtVer)
+            await this.engine.setValue("__ds_fmt_ver", dsFmtVer);
+        }
+        if (this.migrateIds.length > 0) {
+          await this.migrateId(this.migrateIds);
+          this.migrateIds = [];
+        }
+        const storedDataRaw = await this.engine.getValue(`${this.keyPrefix}${this.id}-dat`, null);
+        const storedFmtVer = Number(await this.engine.getValue(`${this.keyPrefix}${this.id}-ver`, NaN));
+        if (typeof storedDataRaw !== "string" && typeof storedDataRaw !== "object" || storedDataRaw === null || isNaN(storedFmtVer)) {
+          await this.saveDefaultData(false);
+          const data = this.engine.deepCopy(this.defaultData);
+          this.emitEvent("loadData", data);
+          return data;
+        }
+        const storedData = storedDataRaw != null ? storedDataRaw : JSON.stringify(this.defaultData);
+        const encodingFmt = String(await this.engine.getValue(`${this.keyPrefix}${this.id}-enf`, null));
+        const isEncoded = encodingFmt !== "null" && encodingFmt !== "false" && encodingFmt !== "0" && encodingFmt !== "" && encodingFmt !== null;
+        let parsed = typeof storedData === "string" ? await this.engine.deserializeData(storedData, isEncoded) : storedData;
+        if (storedFmtVer < this.formatVersion && this.migrations)
+          parsed = await this.runMigrations(parsed, storedFmtVer);
+        const result = this.memoryCache ? this.cachedData = this.engine.deepCopy(parsed) : this.engine.deepCopy(parsed);
+        this.emitEvent("loadData", result);
+        return result;
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        console.warn("Error while parsing JSON data, resetting it to the default value.", err);
+        this.emitEvent("error", error);
+        await this.saveDefaultData();
+        return this.defaultData;
+      }
+    }
+    //#region getData
+    /**
+     * Returns a copy of the data from the in-memory cache.  
+     * Use {@linkcode loadData()} to get fresh data from persistent storage (usually not necessary since the cache should always exactly reflect persistent storage).  
+     * ⚠️ Only available when `memoryCache` is `true` (default). When set to `false`, this produces a type and runtime error - use {@linkcode loadData()} instead.
+     */
+    getData() {
+      if (!this.memoryCache)
+        throw new DatedError("In-memory cache is disabled for this DataStore instance, so getData() can't be used. Please use loadData() instead.");
+      return this.engine.deepCopy(this.cachedData);
+    }
+    //#region setData
+    /** Saves the data synchronously to the in-memory cache and asynchronously to the persistent storage */
+    setData(data) {
+      const dataCopy = this.engine.deepCopy(data);
+      if (this.memoryCache) {
+        this.cachedData = data;
+        this.emitEvent("updateDataSync", dataCopy);
+      }
+      return new Promise(async (resolve) => {
+        const results = await Promise.allSettled([
+          this.engine.setValue(`${this.keyPrefix}${this.id}-dat`, await this.engine.serializeData(data, this.encodingEnabled())),
+          this.engine.setValue(`${this.keyPrefix}${this.id}-ver`, this.formatVersion),
+          this.engine.setValue(`${this.keyPrefix}${this.id}-enf`, this.compressionFormat)
+        ]);
+        if (results.every((r) => r.status === "fulfilled"))
+          this.emitEvent("updateData", dataCopy);
+        else {
+          const error = new Error("Error while saving data to persistent storage: " + results.map((r) => r.status === "rejected" ? r.reason : null).filter(Boolean).join("; "));
+          console.error(error);
+          this.emitEvent("error", error);
+        }
+        resolve();
+      });
+    }
+    //#region saveDefaultData
+    /**
+     * Saves the default data passed in the constructor synchronously to the in-memory cache and asynchronously to persistent storage.
+     * @param emitEvent Whether to emit the `setDefaultData` event - set to `false` to prevent event emission (used internally during initial population in {@linkcode loadData()})
+     */
+    async saveDefaultData(emitEvent = true) {
+      if (this.memoryCache)
+        this.cachedData = this.defaultData;
+      const results = await Promise.allSettled([
+        this.engine.setValue(`${this.keyPrefix}${this.id}-dat`, await this.engine.serializeData(this.defaultData, this.encodingEnabled())),
+        this.engine.setValue(`${this.keyPrefix}${this.id}-ver`, this.formatVersion),
+        this.engine.setValue(`${this.keyPrefix}${this.id}-enf`, this.compressionFormat)
+      ]);
+      if (results.every((r) => r.status === "fulfilled"))
+        emitEvent && this.emitEvent("setDefaultData", this.defaultData);
+      else {
+        const error = new Error("Error while saving default data to persistent storage: " + results.map((r) => r.status === "rejected" ? r.reason : null).filter(Boolean).join("; "));
+        console.error(error);
+        this.emitEvent("error", error);
+      }
+    }
+    //#region deleteData
+    /**
+     * Call this method to clear all persistently stored data associated with this DataStore instance, including the storage container (if supported by the DataStoreEngine).  
+     * The in-memory cache will be left untouched, so you may still access the data with {@linkcode getData()}  
+     * Calling {@linkcode loadData()} or {@linkcode setData()} after this method was called will recreate persistent storage with the cached or default data.
+     */
+    async deleteData() {
+      var _a, _b;
+      await Promise.allSettled([
+        this.engine.deleteValue(`${this.keyPrefix}${this.id}-dat`),
+        this.engine.deleteValue(`${this.keyPrefix}${this.id}-ver`),
+        this.engine.deleteValue(`${this.keyPrefix}${this.id}-enf`)
+      ]);
+      await ((_b = (_a = this.engine).deleteStorage) == null ? void 0 : _b.call(_a));
+      this.emitEvent("deleteData");
+    }
+    //#region encodingEnabled
+    /** Returns whether encoding and decoding are enabled for this DataStore instance */
+    encodingEnabled() {
+      return Boolean(this.encodeData && this.decodeData) && this.compressionFormat !== null || Boolean(this.compressionFormat);
+    }
+    //#region runMigrations
+    /**
+     * Runs all necessary migration functions consecutively and saves the result to the in-memory cache and persistent storage and also returns it.  
+     * This method is automatically called by {@linkcode loadData()} if the data format has changed since the last time the data was saved.  
+     * Though calling this method manually is not necessary, it can be useful if you want to run migrations for special occasions like a user importing potentially outdated data that has been previously exported.  
+     *   
+     * If one of the migrations fails, the data will be reset to the default value if `resetOnError` is set to `true` (default). Otherwise, an error will be thrown and no data will be saved.
+     */
+    async runMigrations(oldData, oldFmtVer, resetOnError = true) {
+      if (!this.migrations)
+        return oldData;
+      let newData = oldData;
+      const sortedMigrations = Object.entries(this.migrations).sort(([a], [b]) => Number(a) - Number(b));
+      let lastFmtVer = oldFmtVer;
+      for (let i = 0; i < sortedMigrations.length; i++) {
+        const [fmtVer, migrationFunc] = sortedMigrations[i];
+        const ver = Number(fmtVer);
+        if (oldFmtVer < this.formatVersion && oldFmtVer < ver) {
+          try {
+            const migRes = migrationFunc(newData);
+            newData = migRes instanceof Promise ? await migRes : migRes;
+            lastFmtVer = oldFmtVer = ver;
+            const isFinal = ver >= this.formatVersion || i === sortedMigrations.length - 1;
+            this.emitEvent("migrateData", ver, newData, isFinal);
+          } catch (err) {
+            const migError = new MigrationError(`Error while running migration function for format version '${fmtVer}'`, { cause: err });
+            this.emitEvent("migrationError", ver, migError);
+            this.emitEvent("error", migError);
+            if (!resetOnError)
+              throw migError;
+            await this.saveDefaultData();
+            return this.engine.deepCopy(this.defaultData);
+          }
+        }
+      }
+      await Promise.allSettled([
+        this.engine.setValue(`${this.keyPrefix}${this.id}-dat`, await this.engine.serializeData(newData, this.encodingEnabled())),
+        this.engine.setValue(`${this.keyPrefix}${this.id}-ver`, lastFmtVer),
+        this.engine.setValue(`${this.keyPrefix}${this.id}-enf`, this.compressionFormat)
+      ]);
+      const result = this.memoryCache ? this.cachedData = this.engine.deepCopy(newData) : this.engine.deepCopy(newData);
+      this.emitEvent("updateData", result);
+      return result;
+    }
+    //#region migrateId
+    /**
+     * Tries to migrate the currently saved persistent data from one or more old IDs to the ID set in the constructor.  
+     * If no data exist for the old ID(s), nothing will be done, but some time may still pass trying to fetch the non-existent data.
+     */
+    async migrateId(oldIds) {
+      const ids = Array.isArray(oldIds) ? oldIds : [oldIds];
+      await Promise.all(ids.map(async (id) => {
+        const [data, fmtVer, isEncoded] = await (async () => {
+          const [d, f, e] = await Promise.all([
+            this.engine.getValue(`${this.keyPrefix}${id}-dat`, JSON.stringify(this.defaultData)),
+            this.engine.getValue(`${this.keyPrefix}${id}-ver`, NaN),
+            this.engine.getValue(`${this.keyPrefix}${id}-enf`, null)
+          ]);
+          return [d, Number(f), Boolean(e) && String(e) !== "null"];
+        })();
+        if (data === void 0 || isNaN(fmtVer))
+          return;
+        const parsed = await this.engine.deserializeData(data, isEncoded);
+        await Promise.allSettled([
+          this.engine.setValue(`${this.keyPrefix}${this.id}-dat`, await this.engine.serializeData(parsed, this.encodingEnabled())),
+          this.engine.setValue(`${this.keyPrefix}${this.id}-ver`, fmtVer),
+          this.engine.setValue(`${this.keyPrefix}${this.id}-enf`, this.compressionFormat),
+          this.engine.deleteValue(`${this.keyPrefix}${id}-dat`),
+          this.engine.deleteValue(`${this.keyPrefix}${id}-ver`),
+          this.engine.deleteValue(`${this.keyPrefix}${id}-enf`)
+        ]);
+        this.emitEvent("migrateId", id, this.id);
+      }));
+    }
+  };
+  var DataStoreEngine = class {
+    // setDataStoreOptions() is called from inside the DataStore constructor to set this value
+    constructor(options) {
+      __publicField(this, "dataStoreOptions");
+      if (options)
+        this.dataStoreOptions = options;
+    }
+    /** Called by DataStore on creation, to pass its options. Only call this if you are using this instance standalone! */
+    setDataStoreOptions(dataStoreOptions) {
+      this.dataStoreOptions = dataStoreOptions;
+    }
+    //#region serialization api
+    /** Serializes the given object to a string, optionally encoded with `options.encodeData` if {@linkcode useEncoding} is not set to false and the `encodeData` and `decodeData` options are set */
+    async serializeData(data, useEncoding) {
+      var _a, _b, _c, _d, _e;
+      this.ensureDataStoreOptions();
+      const stringData = JSON.stringify(data);
+      if (!useEncoding || !((_a = this.dataStoreOptions) == null ? void 0 : _a.encodeData) || !((_b = this.dataStoreOptions) == null ? void 0 : _b.decodeData))
+        return stringData;
+      const encRes = (_e = (_d = (_c = this.dataStoreOptions) == null ? void 0 : _c.encodeData) == null ? void 0 : _d[1]) == null ? void 0 : _e.call(_d, stringData);
+      if (encRes instanceof Promise)
+        return await encRes;
+      return encRes;
+    }
+    /** Deserializes the given string to a JSON object, optionally decoded with `options.decodeData` if {@linkcode useEncoding} is set to true */
+    async deserializeData(data, useEncoding) {
+      var _a, _b, _c;
+      this.ensureDataStoreOptions();
+      let decRes = ((_a = this.dataStoreOptions) == null ? void 0 : _a.decodeData) && useEncoding ? (_c = (_b = this.dataStoreOptions.decodeData) == null ? void 0 : _b[1]) == null ? void 0 : _c.call(_b, data) : void 0;
+      if (decRes instanceof Promise)
+        decRes = await decRes;
+      return JSON.parse(decRes != null ? decRes : data);
+    }
+    //#region misc api
+    /** Throws an error if the {@linkcode DataStoreOptions} are not set or invalid. Call in every method where {@linkcode DataStoreEngineDSOptions} needs to be present. */
+    ensureDataStoreOptions() {
+      if (!this.dataStoreOptions)
+        throw new DatedError("DataStoreEngine must be initialized with DataStore options before use. If you are using this instance standalone, set them in the constructor or call `setDataStoreOptions()` with the DataStore options.");
+      if (!this.dataStoreOptions.id)
+        throw new DatedError("DataStoreEngine must be initialized with a valid DataStore ID");
+    }
+    /**
+     * Copies a JSON-compatible object and loses all its internal references in the process.  
+     * Uses [`structuredClone()`](https://developer.mozilla.org/en-US/docs/Web/API/structuredClone) if available, otherwise falls back to `JSON.parse(JSON.stringify(obj))`.
+     */
+    deepCopy(obj) {
+      try {
+        if ("structuredClone" in globalThis)
+          return structuredClone(obj);
+      } catch (e) {
+      }
+      return JSON.parse(JSON.stringify(obj));
+    }
+  };
+
+  // lib/consts.ts
+  var rawConsts = {
+    coreUtilsVersion: "3.8.0",
+    userUtilsVersion: "11.0.0"
+  };
+  function getConst(constKey, defaultVal) {
+    const val = rawConsts[constKey];
+    return val.match(/^#\{\{.+\}\}$/) ? defaultVal : val;
+  }
+  ({
+    /** Semver version string of the bundled library CoreUtils. */
+    CoreUtils: getConst("coreUtilsVersion", "ERR:unknown"),
+    /** Semver version string of UserUtils. */
+    UserUtils: getConst("userUtilsVersion", "ERR:unknown")
+  });
+
+  // lib/Errors.ts
+  var PlatformError = class extends DatedError {
+    constructor(message, options) {
+      super(message, options);
+      this.name = "PlatformError";
+    }
+  };
+  var domReady = document.readyState !== "loading";
+  !domReady && document.addEventListener("DOMContentLoaded", () => domReady = true, { once: true });
+
+  // lib/GMStorageEngine.ts
+  var GMStorageEngine = class extends DataStoreEngine {
+    /**
+     * Creates an instance of `GMStorageEngine`.  
+     *   
+     * - ⚠️ Requires the grants `GM.getValue`, `GM.setValue`, `GM.deleteValue`, and `GM.listValues` in your userscript metadata.
+     * - ⚠️ Don't reuse engine instances, always create a new one for each {@linkcode DataStore} instance.
+     */
+    constructor(options) {
+      super(options == null ? void 0 : options.dataStoreOptions);
+      __publicField(this, "options");
+      this.options = {
+        ...options
+      };
+    }
+    /** Fetches a value from persistent storage */
+    async getValue(name, defaultValue) {
+      try {
+        if (!("GM" in globalThis))
+          throw new PlatformError("GM is not defined. Make sure to run this in a userscript environment and that the necessary grants are set.");
+        const value = await globalThis.GM.getValue(name, defaultValue);
+        return value === void 0 ? defaultValue : value;
+      } catch (err) {
+        console.error(`Error getting value for key "${name}":`, err);
+        throw err;
+      }
+    }
+    /** Sets a value in persistent storage */
+    async setValue(name, value) {
+      try {
+        if (!("GM" in globalThis))
+          throw new PlatformError("GM is not defined. Make sure to run this in a userscript environment and that the necessary grants are set.");
+        await globalThis.GM.setValue(name, value);
+      } catch (err) {
+        console.error(`Error setting value for key "${name}":`, err);
+        throw err;
+      }
+    }
+    /** Deletes a value from persistent storage */
+    async deleteValue(name) {
+      try {
+        if (!("GM" in globalThis))
+          throw new PlatformError("GM is not defined. Make sure to run this in a userscript environment and that the necessary grants are set.");
+        await globalThis.GM.deleteValue(name);
+      } catch (err) {
+        console.error(`Error deleting value for key "${name}":`, err);
+        throw err;
+      }
+    }
+  };
 
   // HOW THIS WORKS — one method: DOM injection.
   //
@@ -161,48 +868,42 @@
       const rest = (bots || []).filter((b) => (b === null || b === void 0 ? void 0 : b.login) && !taken.has(b.login.toLowerCase()));
       return [...clone(pinned), ...rest];
   }
-  function saveConfig(cfg) {
-      try {
-          GM_setValue('config', cfg);
-      }
-      catch (_a) { }
+  // Persistence via UserUtils' DataStore: it owns the GM storage keys, the format
+  // version, and the migration chain, so changing the config shape later is a
+  // numbered migration function instead of hand-written ?? fallbacks.
+  const store = new DataStore({
+      id: 'gh-mention-bots',
+      defaultData: Object.assign(Object.assign({}, clone(DEFAULTS)), { seedVersion: SEED_VERSION }),
+      formatVersion: 1,
+      engine: new GMStorageEngine(),
+      // A few KB of JSON; compressing it would only buy a CompressionStream probe.
+      compressionFormat: null,
+      migrations: {
+      // 2: (old) => ({ ...(old as Config), newField: true }),
+      },
+  });
+  /** Live view of the config: what's stored, with CUSTOM_BOTS overlaid on top. */
+  let config = Object.assign(Object.assign({}, clone(DEFAULTS)), { seedVersion: SEED_VERSION, bots: mergePinned(DEFAULTS.bots) });
+  async function saveConfig(cfg) {
+      config = Object.assign(Object.assign({}, cfg), { bots: mergePinned(cfg.bots) });
+      await store.setData(cfg);
   }
-  function loadConfig() {
-      var _a, _b, _c, _d, _e;
-      let saved = null;
-      try {
-          saved = GM_getValue('config', null);
-      }
-      catch (_f) { }
-      if (!saved || typeof saved !== 'object') {
-          const fresh = Object.assign(Object.assign({}, clone(DEFAULTS)), { seedVersion: SEED_VERSION });
-          fresh.bots = mergePinned(fresh.bots);
-          saveConfig(fresh);
-          return fresh;
-      }
-      const cfg = {
-          maxResults: (_a = saved.maxResults) !== null && _a !== void 0 ? _a : DEFAULTS.maxResults,
-          showOnEmpty: (_b = saved.showOnEmpty) !== null && _b !== void 0 ? _b : DEFAULTS.showOnEmpty,
-          showBadge: (_c = saved.showBadge) !== null && _c !== void 0 ? _c : DEFAULTS.showBadge,
-          ownPopup: (_d = saved.ownPopup) !== null && _d !== void 0 ? _d : DEFAULTS.ownPopup,
-          bots: Array.isArray(saved.bots) ? saved.bots : clone(DEFAULTS.bots),
-          seedVersion: (_e = saved.seedVersion) !== null && _e !== void 0 ? _e : 0,
-      };
+  // Runs a tick after the listeners below are registered; until it resolves they
+  // read the defaults, which is what a fresh install would use anyway.
+  async function initConfig() {
+      const saved = await store.loadData();
       // Seed top-up: add any default bots this install has never seen. Additive
       // only — never removes or overwrites the user's own bots/edits.
-      if (cfg.seedVersion !== SEED_VERSION) {
-          const have = new Set(cfg.bots.map((b) => (b.login || '').toLowerCase()));
-          for (const b of DEFAULTS.bots) {
-              if (!have.has(b.login.toLowerCase()))
-                  cfg.bots.push(clone(b));
-          }
-          cfg.seedVersion = SEED_VERSION;
-          saveConfig(cfg);
+      if (saved.seedVersion !== SEED_VERSION) {
+          const have = new Set(saved.bots.map((b) => (b.login || '').toLowerCase()));
+          const bots = [...saved.bots, ...DEFAULTS.bots.filter((b) => !have.has(b.login.toLowerCase()))];
+          await saveConfig(Object.assign(Object.assign({}, saved), { bots, seedVersion: SEED_VERSION }));
+          return;
       }
-      cfg.bots = mergePinned(cfg.bots); // runtime overlay; not persisted
-      return cfg;
+      config = Object.assign(Object.assign({}, saved), { bots: mergePinned(saved.bots) }); // overlay, not persisted
   }
-  let config = loadConfig();
+  // A storage failure must not take the script down: the defaults above stay live.
+  initConfig().catch((e) => console.error('[mention-bots] config load failed', e));
   // ── styling ────────────────────────────────────────────────────────────────
   // Row layout is applied inline (!important) per-element in buildItemStyled() so
   // GitHub's option CSS can't override it. This block supplies the mouse-hover and
@@ -1057,18 +1758,12 @@
       $('.backdrop').addEventListener('click', close);
       $('.reset').addEventListener('click', () => {
           if (confirm('Reset bots and settings to the script defaults? (Pinned CUSTOM_BOTS stay.)')) {
-              const next = Object.assign(Object.assign({}, clone(DEFAULTS)), { seedVersion: SEED_VERSION });
-              saveConfig(next);
-              next.bots = mergePinned(next.bots);
-              config = next;
+              void saveConfig(Object.assign(Object.assign({}, clone(DEFAULTS)), { seedVersion: SEED_VERSION }));
               close();
           }
       });
       $('.save').addEventListener('click', () => {
-          const next = collect();
-          saveConfig(next);
-          next.bots = mergePinned(next.bots);
-          config = next;
+          void saveConfig(collect());
           close();
       });
       root.addEventListener('keydown', (e) => {

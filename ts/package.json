@@ -14,5 +14,8 @@
     "rollup": "^4.14.2",
     "tslib": "^2.6.2",
     "typescript": "^5.4.5"
+  },
+  "dependencies": {
+    "@sv443-network/userutils": "^11.0.0"
   }
 }

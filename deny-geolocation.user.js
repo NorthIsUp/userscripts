@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Deny Geolocation
-// @version      0.2.0
+// @version      0.2.1
 // @description  Sites asking for location get an instant PERMISSION_DENIED, no prompt.
 // @icon         data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%238a8f98' d='M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 14.5 9 2.5 2.5 0 0 1 12 11.5z'/%3E%3Cpath fill='none' stroke='%23e5484d' stroke-width='2.4' stroke-linecap='round' d='M4.5 3.5l15 17'/%3E%3C/svg%3E
 // @match        *://*/*

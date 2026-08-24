@@ -21,6 +21,8 @@
 //    a bot matches (no native user) so the bot vanishes, and its keyboard nav
 //    doesn't fully own our injected rows.
 
+import { DataStore, GMStorageEngine } from '@sv443-network/userutils';
+
 type Bot = { login: string; name?: string; avatar?: string };
 type Config = {
   maxResults: number;
@@ -165,50 +167,52 @@ function mergePinned(bots: Bot[]): Bot[] {
   return [...clone(pinned), ...rest];
 }
 
-function saveConfig(cfg: Config) {
-  try {
-    GM_setValue('config', cfg);
-  } catch {}
+// Persistence via UserUtils' DataStore: it owns the GM storage keys, the format
+// version, and the migration chain, so changing the config shape later is a
+// numbered migration function instead of hand-written ?? fallbacks.
+const store = new DataStore<Config>({
+  id: 'gh-mention-bots',
+  defaultData: { ...clone(DEFAULTS), seedVersion: SEED_VERSION },
+  formatVersion: 1,
+  engine: new GMStorageEngine(),
+  // A few KB of JSON; compressing it would only buy a CompressionStream probe.
+  compressionFormat: null,
+  migrations: {
+    // 2: (old) => ({ ...(old as Config), newField: true }),
+  },
+});
+
+/** Live view of the config: what's stored, with CUSTOM_BOTS overlaid on top. */
+let config: Config = {
+  ...clone(DEFAULTS),
+  seedVersion: SEED_VERSION,
+  bots: mergePinned(DEFAULTS.bots),
+};
+
+async function saveConfig(cfg: Config) {
+  config = { ...cfg, bots: mergePinned(cfg.bots) };
+  await store.setData(cfg);
 }
 
-function loadConfig(): Config {
-  let saved: Partial<Config> | null = null;
-  try {
-    saved = GM_getValue<Partial<Config> | null>('config', null);
-  } catch {}
-
-  if (!saved || typeof saved !== 'object') {
-    const fresh: Config = { ...clone(DEFAULTS), seedVersion: SEED_VERSION };
-    fresh.bots = mergePinned(fresh.bots);
-    saveConfig(fresh);
-    return fresh;
-  }
-
-  const cfg: Config = {
-    maxResults: saved.maxResults ?? DEFAULTS.maxResults,
-    showOnEmpty: saved.showOnEmpty ?? DEFAULTS.showOnEmpty,
-    showBadge: saved.showBadge ?? DEFAULTS.showBadge,
-    ownPopup: saved.ownPopup ?? DEFAULTS.ownPopup,
-    bots: Array.isArray(saved.bots) ? saved.bots : clone(DEFAULTS.bots),
-    seedVersion: saved.seedVersion ?? 0,
-  };
+// Runs a tick after the listeners below are registered; until it resolves they
+// read the defaults, which is what a fresh install would use anyway.
+async function initConfig() {
+  const saved = await store.loadData();
 
   // Seed top-up: add any default bots this install has never seen. Additive
   // only — never removes or overwrites the user's own bots/edits.
-  if (cfg.seedVersion !== SEED_VERSION) {
-    const have = new Set(cfg.bots.map((b) => (b.login || '').toLowerCase()));
-    for (const b of DEFAULTS.bots) {
-      if (!have.has(b.login.toLowerCase())) cfg.bots.push(clone(b));
-    }
-    cfg.seedVersion = SEED_VERSION;
-    saveConfig(cfg);
+  if (saved.seedVersion !== SEED_VERSION) {
+    const have = new Set(saved.bots.map((b) => (b.login || '').toLowerCase()));
+    const bots = [...saved.bots, ...DEFAULTS.bots.filter((b) => !have.has(b.login.toLowerCase()))];
+    await saveConfig({ ...saved, bots, seedVersion: SEED_VERSION });
+    return;
   }
 
-  cfg.bots = mergePinned(cfg.bots); // runtime overlay; not persisted
-  return cfg;
+  config = { ...saved, bots: mergePinned(saved.bots) }; // overlay, not persisted
 }
 
-let config = loadConfig();
+// A storage failure must not take the script down: the defaults above stay live.
+initConfig().catch((e) => console.error('[mention-bots] config load failed', e));
 
 // ── styling ────────────────────────────────────────────────────────────────
 // Row layout is applied inline (!important) per-element in buildItemStyled() so
@@ -1092,18 +1096,12 @@ function openConfig() {
   $('.backdrop').addEventListener('click', close);
   $('.reset').addEventListener('click', () => {
     if (confirm('Reset bots and settings to the script defaults? (Pinned CUSTOM_BOTS stay.)')) {
-      const next: Config = { ...clone(DEFAULTS), seedVersion: SEED_VERSION };
-      saveConfig(next);
-      next.bots = mergePinned(next.bots);
-      config = next;
+      void saveConfig({ ...clone(DEFAULTS), seedVersion: SEED_VERSION });
       close();
     }
   });
   $('.save').addEventListener('click', () => {
-    const next = collect();
-    saveConfig(next);
-    next.bots = mergePinned(next.bots);
-    config = next;
+    void saveConfig(collect());
     close();
   });
   root.addEventListener('keydown', (e) => {

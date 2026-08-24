@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Okta autofill + FastPass — teamclara
 // @namespace    http://tampermonkey.net/
-// @version      2.1
+// @version      2.1.1
 // @description  Fills username + "Keep me signed in" + Next, then clicks FastPass when it appears
 // @icon         https://www.okta.com/favicon.ico
 // @match        https://teamclara.okta.com/*
