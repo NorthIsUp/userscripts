@@ -23,16 +23,15 @@ userscript manager pulls future versions on its own (whenever `@version` rises).
 ## Layout
 
 ```
-ts/
-  src/scripts/<name>.ts   one file per userscript — code AND its header metadata
-  src/lib/                shared helpers (dom, github, meta type, GM globals)
-  icons.mjs               icon data URIs, one entry per brand
-  header.mjs              renders the ==UserScript== block
-  meta.mjs                reads each script's `meta` export at build time
-  rollup.config.mjs       one bundle per script → ts/dist/
+src/scripts/<name>.ts   one file per userscript — code AND its header metadata
+src/lib/                shared helpers (dom, github, meta type, GM globals)
+build/icons.mjs         icon data URIs, one entry per brand
+build/header.mjs        renders the ==UserScript== block
+build/meta.mjs          reads each script's `meta` export at build time
+rollup.config.mjs       one bundle per script → dist/
 ```
 
-Nothing built is committed; `ts/dist/` is gitignored and CI publishes it.
+Nothing built is committed; `dist/` is gitignored and CI publishes it.
 
 ## Header metadata
 
@@ -68,21 +67,20 @@ no update and never fetch the new build.
 ## Dev
 
 ```sh
-cd ts
 npm install
-npm run build    # → ts/dist/*.user.js
+npm run build    # → dist/*.user.js
 npm run watch    # rebuild on change
 npm run lint     # tsc --noEmit
 ```
 
-Adding a script: create `ts/src/scripts/<name>.ts` with a `meta` export. It is
+Adding a script: create `src/scripts/<name>.ts` with a `meta` export. It is
 picked up automatically — there is no list to update.
 
 Point your userscript manager at a local file (Tampermonkey: install from
-`file://…/ts/dist/<name>.user.js` with file access enabled) to test a build
+`file://…/dist/<name>.user.js` with file access enabled) to test a build
 before pushing.
 
-Formatting and linting is [biome](https://biomejs.dev) over `ts/`, run by an
+Formatting and linting is [biome](https://biomejs.dev) over `src/` and `build/`, run by an
 [hk](https://hk.jdx.dev) pre-commit hook installed via [mise](https://mise.jdx.dev):
 
 ```sh

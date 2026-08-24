@@ -8,7 +8,7 @@ function line(key, value) {
   return `// @${key.padEnd(PAD)}${value}`;
 }
 
-/** @param {{ file: string } & import("./src/lib/meta").ScriptMeta} def */
+/** @param {{ file: string } & import("../src/lib/meta").ScriptMeta} def */
 export function buildHeader(def) {
   // Release assets, not raw files: this URL always resolves to the newest
   // release, so a version bump needs no header edit and no branch pinning.

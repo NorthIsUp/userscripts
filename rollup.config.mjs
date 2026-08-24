@@ -1,7 +1,7 @@
 import pluginNodeResolve from '@rollup/plugin-node-resolve';
 import pluginTypeScript from '@rollup/plugin-typescript';
-import { buildHeader } from './header.mjs';
-import { loadScripts } from './meta.mjs';
+import { buildHeader } from './build/header.mjs';
+import { loadScripts } from './build/meta.mjs';
 
 // The `meta` export exists for the build only; drop the keyword so the bundle
 // has no exports (an IIFE can't have any) and the object tree-shakes away.

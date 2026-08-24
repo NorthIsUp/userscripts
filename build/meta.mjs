@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 
-const SCRIPTS_DIR = join(dirname(fileURLToPath(import.meta.url)), 'src/scripts');
+const SCRIPTS_DIR = join(dirname(fileURLToPath(import.meta.url)), '../src/scripts');
 
 /** Pull the `export const meta = {...}` literal out of a script's source. */
 function readMeta(path, filename) {
