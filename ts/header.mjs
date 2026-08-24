@@ -1,5 +1,5 @@
 import { atSize, icons } from './icons.mjs';
-import { branch, repo } from './scripts.mjs';
+import { repo } from './scripts.mjs';
 
 const PAD = 13;
 

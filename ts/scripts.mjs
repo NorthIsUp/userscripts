@@ -3,7 +3,6 @@
 // header.mjs, so a row only carries what actually differs between scripts.
 
 export const repo = 'NorthIsUp/userscripts';
-export const branch = 'main';
 
 /**
  * @typedef {object} ScriptDef
