@@ -26,13 +26,12 @@ import type { ScriptMeta } from '../lib/meta';
 
 export const meta: ScriptMeta = {
   name: 'Code Helpers — GitHub @-mention Bots',
-  version: '3.2.1',
+  version: '3.2.2',
   description:
     'Adds configurable "bots" to the @-mention autocomplete on GitHub, with a config panel + storage.',
   match: ['https://github.com/*'],
   runAt: 'document-idle',
   icon: 'github',
-  namespace: 'https://askclara.com/userscripts',
   author: 'NorthIsUp',
   // GM.* (not GM_*) — that is what DataStore's GMStorageEngine calls.
   grant: [

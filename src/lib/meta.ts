@@ -17,7 +17,7 @@ export type ScriptMeta = {
   grant?: string[];
   /** Key in icons.mjs; @icon64 is derived by rescaling. */
   icon?: 'github' | 'graphite' | 'geo' | 'okta';
-  /** Defaults to https://github.com/; null omits the directive entirely. */
+  /** Defaults to this script's own URL under the repo; null omits it. */
   namespace?: string | null;
   author?: string;
   require?: string[];

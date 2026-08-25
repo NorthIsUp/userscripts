@@ -57,9 +57,11 @@ export const meta: ScriptMeta = {
 };
 ```
 
-Defaults fill in the rest: `@grant none`, `@namespace https://github.com/`
-(pass `namespace: null` to omit it), and `@updateURL`/`@downloadURL` pointing at
-this script's release asset. `@icon64` is derived from `@icon` by rescaling, so
+Defaults fill in the rest: `@grant none`, a `@namespace` of this script's own
+URL under the repo, and `@updateURL`/`@downloadURL` pointing at its release
+asset. The namespace is per-script on purpose — a userscript manager identifies
+a script by `@namespace` + `@name`, so a shared namespace lets look-alike names
+match each other and offer to overwrite the wrong script. `@icon64` is derived from `@icon` by rescaling, so
 each icon is stored exactly once in `icons.mjs`.
 
 The build never imports a script to read its `meta` — it parses the source with

@@ -4,7 +4,7 @@ import type { ScriptMeta } from '../lib/meta';
 
 export const meta: ScriptMeta = {
   name: 'Code Helpers: GitHub PR — Submit Review Button',
-  version: '4.6.3',
+  version: '4.6.4',
   description:
     "Review actions next to Code on the PR page — approve, approve/reject/comment with a note, close — all driving GitHub's own review dialog.",
   match: ['https://github.com/*/*/pull/*'],

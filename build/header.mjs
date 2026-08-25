@@ -18,9 +18,12 @@ export function buildHeader(def) {
   const icon64 = icon && atSize(icon, 64) !== icon ? atSize(icon, 64) : null;
   const rows = [
     line('name', def.name),
-    // namespace: null keeps the directive out entirely (it is half of a
-    // userscript manager's identity for a script, so it must stay byte-stable).
-    ...(def.namespace === null ? [] : [line('namespace', def.namespace ?? 'https://github.com/')]),
+    // @namespace + @name is a userscript manager's identity for a script, so
+    // every script gets its own — a shared namespace lets look-alike names
+    // (open-in-graphite vs open-in-github) match each other on install.
+    ...(def.namespace === null
+      ? []
+      : [line('namespace', def.namespace ?? `https://github.com/${repo}/${def.file}`)]),
     line('version', def.version),
     line('description', def.description),
     ...(def.author ? [line('author', def.author)] : []),

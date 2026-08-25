@@ -2,12 +2,11 @@ import type { ScriptMeta } from '../lib/meta';
 
 export const meta: ScriptMeta = {
   name: 'Deny Geolocation',
-  version: '0.2.2',
+  version: '0.2.3',
   description: 'Sites asking for location get an instant PERMISSION_DENIED, no prompt.',
   match: ['*://*/*'],
   runAt: 'document-start',
   icon: 'geo',
-  namespace: null,
   require: ['https://cdn.jsdelivr.net/npm/toastify-js@1.12.0/src/toastify.js'],
   grant: ['GM_registerMenuCommand', 'GM_getValue', 'GM_setValue'],
 };
