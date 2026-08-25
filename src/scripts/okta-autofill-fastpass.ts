@@ -1,8 +1,9 @@
 import type { ScriptMeta } from '../lib/meta';
+import { menuCommand, openPanel, settingsEditor, toast } from '../lib/ui';
 
 export const meta: ScriptMeta = {
   name: 'Okta autofill + FastPass — teamclara',
-  version: '2.1.3',
+  version: '2.1.4',
   description: 'Fills username + "Keep me signed in" + Next, then clicks FastPass when it appears',
   match: ['https://teamclara.okta.com/*', 'https://*.okta.com/*'],
   runAt: 'document-idle',
@@ -17,20 +18,40 @@ const INTERVAL_MS = 500;
 // --- Username config (persisted, editable from the Tampermonkey menu) ---
 let username = GM_getValue('oktaUsername', '');
 
-function promptUsername() {
-  const next = window.prompt('Okta username to autofill:', username);
-  if (next !== null) {
-    // null = user hit Cancel
-    username = next.trim();
-    GM_setValue('oktaUsername', username);
-    console.log('Okta username set to:', username || '(empty)');
-  }
+function openSettings() {
+  const settings = settingsEditor<{ username: string }>(
+    [{ key: 'username', kind: 'text', label: 'Username', placeholder: 'you@teamclara.com' }],
+    { username },
+  );
+
+  openPanel({
+    id: 'okta-autofill-cfg',
+    title: 'Okta autofill',
+    hint: 'Filled into the identifier field, then Next is clicked for you.',
+    build: (body) => body.appendChild(settings.el),
+    footer: [
+      { label: 'Cancel', onClick: (panel) => panel.close() },
+      {
+        label: 'Save',
+        primary: true,
+        onClick: (panel) => {
+          username = settings.read().username ?? '';
+          GM_setValue('oktaUsername', username);
+          panel.close();
+          toast({
+            text: username ? `Okta username set to ${username}` : 'Okta username cleared',
+            duration: 4000,
+          });
+        },
+      },
+    ],
+  });
 }
 
-GM_registerMenuCommand('Set Okta username…', promptUsername);
+menuCommand('Set Okta username…', openSettings);
 
-// Prompt once if we've never been configured.
-if (!username) promptUsername();
+// Ask once if we've never been configured.
+if (!username) openSettings();
 
 let identifierDone = false;
 

@@ -24,7 +24,8 @@ userscript manager pulls future versions on its own (whenever `@version` rises).
 
 ```
 src/scripts/<name>.ts   one file per userscript — code AND its header metadata
-src/lib/                shared helpers (dom, github, meta type, GM globals)
+src/lib/ui.ts           toasts + settings panels shared by every script
+src/lib/                other shared helpers (dom, github, meta type, GM globals)
 build/icons.mjs         icon data URIs, one entry per brand
 build/header.mjs        renders the ==UserScript== block
 build/meta.mjs          reads each script's `meta` export at build time
@@ -73,6 +74,7 @@ npm install
 npm run build    # → dist/*.user.js
 npm run watch    # rebuild on change
 npm run lint     # tsc --noEmit
+npm test         # node --test (jsdom-backed UI tests)
 ```
 
 Adding a script: create `src/scripts/<name>.ts` with a `meta` export. It is
@@ -91,6 +93,21 @@ hk install       # git pre-commit hook
 hk check         # lint + format check
 hk fix           # apply fixes
 ```
+
+## UI
+
+Anything a script shows the user goes through `src/lib/ui.ts`, so notifications
+and settings look and behave the same everywhere:
+
+- `toast({ text, actions, tone })` — corner notification with optional buttons
+- `openPanel({ id, title, hint, build, footer })` — modal settings panel
+- `settingsEditor(specs, values)` — labelled controls that read back as an object
+- `rowsEditor({ columns, items })` — editable list of same-shaped records
+- `menuCommand(label, fn)` — userscript-manager menu entry, where supported
+
+Both render inside a shadow root with `all: initial` and a single set of color
+tokens that follow the page's light/dark scheme — pages we inject into (GitHub
+especially) have CSS aggressive enough to wreck anything less isolated.
 
 ## Releases
 

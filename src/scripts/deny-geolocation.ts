@@ -2,14 +2,15 @@ import type { ScriptMeta } from '../lib/meta';
 
 export const meta: ScriptMeta = {
   name: 'Deny Geolocation',
-  version: '0.2.3',
+  version: '0.2.4',
   description: 'Sites asking for location get an instant PERMISSION_DENIED, no prompt.',
   match: ['*://*/*'],
   runAt: 'document-start',
   icon: 'geo',
-  require: ['https://cdn.jsdelivr.net/npm/toastify-js@1.12.0/src/toastify.js'],
   grant: ['GM_registerMenuCommand', 'GM_getValue', 'GM_setValue'],
 };
+
+import { menuCommand, openPanel, toast } from '../lib/ui';
 
 // granted scripts run sandboxed; patch the real page window through unsafeWindow
 const W = (typeof unsafeWindow !== 'undefined' ? unsafeWindow : window) as typeof unsafeWindow;
@@ -75,126 +76,110 @@ const allowSite = (durSec: number | 'always') => {
 const btn = (label: string, onclick: () => void) => {
   const b = document.createElement('button');
   b.textContent = label;
-  b.style.cssText =
-    'background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.6);color:#fff;' +
-    'border-radius:6px;padding:2px 10px;cursor:pointer;font:inherit;';
-  b.onclick = onclick;
+  b.addEventListener('click', onclick);
   return b;
 };
 
 const fmtExpiry = (v: Allow) => (v === 'always' ? 'always' : new Date(v).toLocaleString());
 
-const openConfig = () => {
-  document.getElementById('deny-geo-cfg')?.remove();
-  const allows = store();
-  const p = document.createElement('div');
-  p.id = 'deny-geo-cfg';
-  p.style.cssText =
-    'position:fixed;bottom:16px;right:16px;z-index:2147483647;background:#26272b;color:#fff;' +
-    'padding:14px 16px;border-radius:10px;font:13px/1.5 system-ui,sans-serif;' +
-    'box-shadow:0 6px 20px rgba(0,0,0,.4);display:flex;flex-direction:column;gap:10px;' +
-    'min-width:300px;max-width:420px;max-height:70vh;overflow:auto;';
+function openConfig() {
+  openPanel({
+    id: 'deny-geo-cfg',
+    title: 'Deny geolocation',
+    hint: 'Geolocation is denied everywhere by default; only the sites listed here are allowed.',
+    build: (body, panel) => {
+      const allows = store();
 
-  const head = document.createElement('div');
-  head.style.cssText =
-    'display:flex;justify-content:space-between;align-items:center;gap:12px;font-weight:600;';
-  const title = document.createElement('span');
-  title.textContent = 'Deny geolocation';
-  const x = btn('✕', () => p.remove());
-  x.style.border = 'none';
-  x.style.background = 'transparent';
-  head.append(title, x);
+      const site = document.createElement('div');
+      site.className = 'row';
+      const current = matchEntry(allows);
+      if (current) {
+        site.append(
+          `${location.hostname}: allowed`,
+          btn('block again', () => {
+            removeAllow(current);
+            location.reload();
+          }),
+        );
+      } else {
+        site.append(
+          `${location.hostname}: blocked · allow for:`,
+          btn('1d', () => allowSite(86400)),
+          btn('always', () => allowSite('always')),
+        );
+      }
+      body.appendChild(site);
 
-  const site = document.createElement('div');
-  site.style.cssText = 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;';
-  const cur = matchEntry(allows);
-  if (cur) {
-    site.append(
-      `${location.hostname}: allowed`,
-      btn('block again', () => {
-        removeAllow(cur);
-        location.reload();
-      }),
-    );
-  } else {
-    site.append(
-      `${location.hostname}: blocked · allow for:`,
-      btn('1d', () => allowSite(86400)),
-      btn('always', () => allowSite('always')),
-    );
-  }
+      const entries = Object.entries(allows).sort(([a], [b]) => a.localeCompare(b));
+      if (entries.length === 0) {
+        const empty = document.createElement('p');
+        empty.className = 'hint';
+        empty.textContent = 'no allowed sites — everything is denied';
+        body.appendChild(empty);
+      } else {
+        const table = document.createElement('table');
+        for (const [domain, expiry] of entries) {
+          const tr = document.createElement('tr');
+          const cell = (content: string | Node, css?: string) => {
+            const td = document.createElement('td');
+            if (css) td.style.cssText = css;
+            if (typeof content === 'string') td.textContent = content;
+            else td.appendChild(content);
+            return td;
+          };
+          const remove = btn('✕', () => {
+            removeAllow(domain);
+            // Dropping the entry that allows *this* page has to take effect now.
+            if (domain === matchEntry({ [domain]: expiry })) location.reload();
+            else panel.refresh();
+          });
+          remove.className = 'plain';
+          tr.append(
+            cell(domain),
+            cell(fmtExpiry(expiry), 'color:var(--muted)'),
+            cell(remove, 'text-align:right'),
+          );
+          table.appendChild(tr);
+        }
+        body.appendChild(table);
+      }
 
-  const table = document.createElement('table');
-  table.style.cssText = 'border-collapse:collapse;width:100%;';
-  const entries = Object.entries(allows).sort(([a], [b]) => a.localeCompare(b));
-  if (entries.length === 0) {
-    const empty = document.createElement('div');
-    empty.style.opacity = '0.7';
-    empty.textContent = 'no allowed sites — everything is denied';
-    table.replaceWith(empty);
-    p.append(head, site, empty);
-  } else {
-    for (const [domain, v] of entries) {
-      const tr = document.createElement('tr');
-      const td = (content: string | Node, css?: string) => {
-        const c = document.createElement('td');
-        c.style.cssText = `padding:3px 8px 3px 0;border-top:1px solid rgba(255,255,255,.12);${css || ''}`;
-        if (typeof content === 'string') c.textContent = content;
-        else c.appendChild(content);
-        return c;
+      const addRow = document.createElement('div');
+      addRow.className = 'row';
+      const input = document.createElement('input');
+      input.placeholder = 'add domain, e.g. example.com';
+      const addFor = (dur: number | 'always') => {
+        const d = input.value
+          .trim()
+          .toLowerCase()
+          .replace(/^www\./, '');
+        if (!d) return;
+        setAllow(d, dur);
+        panel.refresh();
       };
-      const rm = btn('✕', () => {
-        removeAllow(domain);
-        if (domain === matchEntry({ [domain]: 1 }) && matchEntry({ [domain]: 1 }))
-          location.reload();
-        else openConfig();
+      addRow.append(
+        input,
+        btn('1d', () => addFor(86400)),
+        btn('always', () => addFor('always')),
+      );
+      body.appendChild(addRow);
+
+      const mute = document.createElement('label');
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = isMuted();
+      cb.addEventListener('change', () => {
+        try {
+          localStorage.setItem(MUTE_KEY, cb.checked ? '1' : '0');
+        } catch {}
       });
-      rm.style.padding = '0 8px';
-      tr.append(td(domain), td(fmtExpiry(v), 'opacity:.7;'), td(rm, 'text-align:right;'));
-      table.appendChild(tr);
-    }
-    p.append(head, site, table);
-  }
+      mute.append(cb, 'mute toasts on this site (still blocks)');
+      body.appendChild(mute);
+    },
+  });
+}
 
-  const addRow = document.createElement('div');
-  addRow.style.cssText = 'display:flex;gap:8px;align-items:center;';
-  const input = document.createElement('input');
-  input.placeholder = 'add domain, e.g. example.com';
-  input.style.cssText =
-    'flex:1;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.3);color:#fff;' +
-    'border-radius:6px;padding:3px 8px;font:inherit;';
-  const addFor = (dur: number | 'always') => {
-    const d = input.value
-      .trim()
-      .toLowerCase()
-      .replace(/^www\./, '');
-    if (!d) return;
-    setAllow(d, dur);
-    openConfig();
-  };
-  addRow.append(
-    input,
-    btn('1d', () => addFor(86400)),
-    btn('always', () => addFor('always')),
-  );
-
-  const mute = document.createElement('label');
-  mute.style.cssText = 'display:flex;gap:6px;align-items:center;cursor:pointer;';
-  const cb = document.createElement('input');
-  cb.type = 'checkbox';
-  cb.checked = isMuted();
-  cb.onchange = () => {
-    try {
-      localStorage.setItem(MUTE_KEY, cb.checked ? '1' : '0');
-    } catch {}
-  };
-  mute.append(cb, 'mute toasts on this site (still blocks)');
-
-  p.append(addRow, mute);
-  document.body.appendChild(p);
-};
-
-if (typeof GM_registerMenuCommand === 'function') GM_registerMenuCommand('Configure ⚙', openConfig);
+menuCommand('Configure ⚙', openConfig);
 try {
   W.denyGeoConfig = openConfig;
 } catch {}
@@ -214,40 +199,16 @@ if (!matchEntry(pruned)) {
   const notify = () => {
     if (isMuted() || Date.now() - lastToast < 3000) return;
     lastToast = Date.now();
-    const show = () => {
-      if (!document.getElementById('deny-geo-css')) {
-        const css = document.createElement('link');
-        css.id = 'deny-geo-css';
-        css.rel = 'stylesheet';
-        css.href = 'https://cdn.jsdelivr.net/npm/toastify-js@1.12.0/src/toastify.min.css';
-        document.head.appendChild(css);
-      }
-      const node = document.createElement('div');
-      node.style.cssText = 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;';
-      const msg = document.createElement('span');
-      const url = location.href.length > 64 ? `${location.href.slice(0, 61)}...` : location.href;
-      msg.textContent = `⛔ Blocked geolocation request from: ${url}`;
-      const sep = document.createElement('span');
-      sep.textContent = 'allow for:';
-      sep.style.opacity = '0.8';
-      node.append(
-        msg,
-        sep,
-        btn('1d', () => allowSite(86400)),
-        btn('always', () => allowSite('always')),
-        btn('⚙', openConfig),
-      );
-      Toastify({
-        node,
-        duration: 10000,
-        close: true,
-        gravity: 'bottom',
-        position: 'right',
-        style: { background: '#e5484d', borderRadius: '8px' },
-      }).showToast();
-    };
-    if (document.body) show();
-    else addEventListener('DOMContentLoaded', show, { once: true });
+    const url = location.href.length > 64 ? `${location.href.slice(0, 61)}...` : location.href;
+    toast({
+      text: `⛔ Blocked geolocation request from: ${url}`,
+      tone: 'danger',
+      actions: [
+        { label: 'allow 1d', onClick: () => allowSite(86400) },
+        { label: 'allow always', onClick: () => allowSite('always') },
+        { label: '⚙', onClick: openConfig },
+      ],
+    });
   };
 
   const deny = (_ok: unknown, err: unknown) => {

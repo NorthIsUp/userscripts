@@ -23,10 +23,11 @@
 
 import { DataStore, GMStorageEngine } from '@sv443-network/userutils';
 import type { ScriptMeta } from '../lib/meta';
+import { menuCommand, openPanel, rowsEditor, settingsEditor } from '../lib/ui';
 
 export const meta: ScriptMeta = {
   name: 'Code Helpers — GitHub @-mention Bots',
-  version: '3.2.2',
+  version: '3.2.3',
   description:
     'Adds configurable "bots" to the @-mention autocomplete on GitHub, with a config panel + storage.',
   match: ['https://github.com/*'],
@@ -970,164 +971,85 @@ document.addEventListener(
 //  Config panel
 // ────────────────────────────────────────────────────────────────────────
 function openConfig() {
-  if (document.getElementById('gh-bot-config-host')) return;
+  const settings = settingsEditor<Config>(
+    [
+      {
+        key: 'ownPopup',
+        kind: 'boolean',
+        label: 'Own popup (bots + users; fixes bot-only queries)',
+      },
+      { key: 'showOnEmpty', kind: 'boolean', label: 'Show all on "@"' },
+      { key: 'showBadge', kind: 'boolean', label: 'Show "bot" badge' },
+      { key: 'maxResults', kind: 'number', label: 'Max results', min: 1, max: 500 },
+    ],
+    config,
+  );
 
-  const host = document.createElement('div');
-  host.id = 'gh-bot-config-host';
-  const root = host.attachShadow({ mode: 'open' });
-  root.innerHTML = `
-      <style>
-        :host{all:initial;}
-        *{box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;}
-        .backdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:2147483646;}
-        .panel{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2147483647;
-          width:min(700px,92vw);max-height:88vh;overflow:auto;background:#fff;color:#1f2328;
-          border-radius:12px;box-shadow:0 8px 40px rgba(0,0,0,.3);padding:16px 18px;}
-        h2{font-size:16px;margin:0;}
-        header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
-        button{cursor:pointer;border-radius:6px;border:1px solid #d0d7de;background:#f6f8fa;color:inherit;padding:5px 10px;font-size:13px;}
-        button.save{background:#1f883d;border-color:#1f883d;color:#fff;}
-        button.x,button.del{border:none;background:transparent;font-size:14px;padding:2px 6px;opacity:.6;}
-        button.x:hover,button.del:hover{opacity:1;}
-        input{border:1px solid #d0d7de;border-radius:6px;padding:5px 8px;font-size:13px;background:#fff;color:#1f2328;}
-        .settings{display:flex;flex-wrap:wrap;gap:14px;align-items:center;padding:8px 0 12px;
-          border-bottom:1px solid rgba(128,128,128,.25);margin-bottom:10px;font-size:13px;}
-        .settings label{display:flex;align-items:center;gap:6px;}
-        .settings input[type=number]{width:56px;}
-        .row{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
-        .row .ava{width:24px;height:24px;border-radius:50%;flex:0 0 auto;object-fit:cover;background:rgba(128,128,128,.4);}
-        .row input{flex:1;min-width:0;}
-        .row input[data-k=login]{flex:0 0 140px;}
-        .add{margin:4px 0 12px;}
-        footer{display:flex;align-items:center;gap:8px;margin-top:8px;padding-top:12px;border-top:1px solid rgba(128,128,128,.25);}
-        .spacer{flex:1;}
-        .hint{font-size:12px;opacity:.6;margin:0 0 10px;}
-        @media (prefers-color-scheme: dark){
-          .panel{background:#161b22;color:#e6edf3;}
-          button{background:#21262d;border-color:#30363d;}
-          button.save{background:#238636;border-color:#238636;}
-          input{background:#0d1117;color:#e6edf3;border-color:#30363d;}
-        }
-      </style>
-      <div class="backdrop"></div>
-      <div class="panel" role="dialog" aria-modal="true" aria-label="Mention bots">
-        <header><h2>Mention bots</h2><button class="x" title="Close">&#10005;</button></header>
-        <p class="hint">These appear in GitHub's @-autocomplete. "login" is what gets inserted (as @login).</p>
-        <section class="settings">
-          <label><input type="checkbox" data-s="ownPopup"> Own popup (bots + users; fixes bot-only queries)</label>
-          <label><input type="checkbox" data-s="showOnEmpty"> Show all on &ldquo;@&rdquo;</label>
-          <label><input type="checkbox" data-s="showBadge"> Show &ldquo;bot&rdquo; badge</label>
-          <label>Max results <input type="number" min="1" max="500" data-s="maxResults"></label>
-        </section>
-        <section class="bots"></section>
-        <button class="add">+ Add bot</button>
-        <footer>
-          <button class="reset">Reset to defaults</button>
-          <span class="spacer"></span>
-          <button class="cancel">Cancel</button>
-          <button class="save">Save</button>
-        </footer>
-      </div>`;
-  document.body.appendChild(host);
-
-  const $ = <E extends HTMLElement>(s: string) => root.querySelector(s) as E;
-  const botsWrap = $('.bots');
-
-  $<HTMLInputElement>('[data-s="ownPopup"]').checked = !!config.ownPopup;
-  $<HTMLInputElement>('[data-s="showOnEmpty"]').checked = !!config.showOnEmpty;
-  $<HTMLInputElement>('[data-s="showBadge"]').checked = !!config.showBadge;
-  $<HTMLInputElement>('[data-s="maxResults"]').value = String(config.maxResults);
-
-  function mkInput(key: string, val: string | undefined, ph: string): HTMLInputElement {
-    const i = document.createElement('input');
-    i.dataset.k = key;
-    i.value = val || '';
-    i.placeholder = ph;
-    return i;
-  }
-  function addRow(bot: Bot = { login: '', name: '', avatar: '' }) {
-    const row = document.createElement('div');
-    row.className = 'row';
-    const img = document.createElement('img');
-    img.className = 'ava';
-    img.onerror = () => {
-      img.src = DEFAULT_AVATAR;
-    };
-    img.src = bot.avatar || DEFAULT_AVATAR;
-    const login = mkInput('login', bot.login, 'login');
-    const name = mkInput('name', bot.name, 'display name (optional)');
-    const avatar = mkInput('avatar', bot.avatar, 'avatar URL (optional)');
-    avatar.addEventListener('input', () => {
-      img.src = avatar.value || DEFAULT_AVATAR;
-    });
-    const del = document.createElement('button');
-    del.className = 'del';
-    del.textContent = '✕';
-    del.title = 'Remove';
-    del.addEventListener('click', () => row.remove());
-    row.append(img, login, name, avatar, del);
-    botsWrap.appendChild(row);
-  }
-
-  const pinnedLogins = new Set(CUSTOM_BOTS.map((b) => (b.login || '').toLowerCase()));
-  for (const b of config.bots || []) {
-    if (!pinnedLogins.has((b.login || '').toLowerCase())) addRow(b);
-  }
-  if (pinnedLogins.size) {
-    const note = document.createElement('p');
-    note.className = 'hint';
-    note.textContent = `+ ${pinnedLogins.size} pinned bot(s) defined in code (CUSTOM_BOTS) — edit those in the script.`;
-    botsWrap.appendChild(note);
-  }
-  $('.add').addEventListener('click', () => addRow());
+  // CUSTOM_BOTS are code-defined and merged in on every load, so editing them
+  // here would just be overwritten — list them as a note instead.
+  const pinned = new Set(CUSTOM_BOTS.map((b) => (b.login || '').toLowerCase()));
+  const bots = rowsEditor<Record<string, string>>({
+    columns: [
+      { key: 'login', placeholder: 'login', width: '140px' },
+      { key: 'name', placeholder: 'display name (optional)' },
+      { key: 'avatar', placeholder: 'avatar URL (optional)' },
+    ],
+    items: (config.bots || [])
+      .filter((b) => !pinned.has((b.login || '').toLowerCase()))
+      .map((b) => ({ login: b.login, name: b.name ?? '', avatar: b.avatar ?? '' })),
+    previewKey: 'avatar',
+    previewFallback: DEFAULT_AVATAR,
+    addLabel: '+ Add bot',
+  });
 
   function collect(): Config {
-    const bots = [...botsWrap.querySelectorAll('.row')]
-      .map((row) => {
-        const g = (k: string) =>
-          (row.querySelector(`[data-k="${k}"]`) as HTMLInputElement).value.trim();
-        return {
-          login: g('login').replace(/^@/, ''),
-          name: g('name'),
-          avatar: g('avatar'),
-        };
-      })
-      .filter((b) => b.login);
     return {
-      maxResults: Math.max(
-        1,
-        Math.min(
-          500,
-          parseInt($<HTMLInputElement>('[data-s="maxResults"]').value, 10) || DEFAULTS.maxResults,
-        ),
-      ),
-      ownPopup: $<HTMLInputElement>('[data-s="ownPopup"]').checked,
-      showOnEmpty: $<HTMLInputElement>('[data-s="showOnEmpty"]').checked,
-      showBadge: $<HTMLInputElement>('[data-s="showBadge"]').checked,
-      bots,
+      ...config,
+      ...settings.read(),
+      bots: bots
+        .read()
+        .map((b) => ({ ...b, login: b.login.replace(/^@/, '') }))
+        .filter((b) => b.login),
       seedVersion: SEED_VERSION,
     };
   }
 
-  const close = () => host.remove();
-  $('.x').addEventListener('click', close);
-  $('.cancel').addEventListener('click', close);
-  $('.backdrop').addEventListener('click', close);
-  $('.reset').addEventListener('click', () => {
-    if (confirm('Reset bots and settings to the script defaults? (Pinned CUSTOM_BOTS stay.)')) {
-      void saveConfig({ ...clone(DEFAULTS), seedVersion: SEED_VERSION });
-      close();
-    }
-  });
-  $('.save').addEventListener('click', () => {
-    void saveConfig(collect());
-    close();
-  });
-  root.addEventListener('keydown', (e) => {
-    if ((e as KeyboardEvent).key === 'Escape') close();
+  openPanel({
+    id: 'gh-bot-config-host',
+    title: 'Mention bots',
+    hint: 'These appear in GitHub\'s @-autocomplete. "login" is what gets inserted (as @login).',
+    build: (body) => {
+      body.append(settings.el, bots.el);
+      if (pinned.size) {
+        const note = document.createElement('p');
+        note.className = 'hint';
+        note.textContent = `+ ${pinned.size} pinned bot(s) defined in code (CUSTOM_BOTS) — edit those in the script.`;
+        body.appendChild(note);
+      }
+    },
+    footer: [
+      {
+        label: 'Reset to defaults',
+        onClick: (panel) => {
+          if (
+            confirm('Reset bots and settings to the script defaults? (Pinned CUSTOM_BOTS stay.)')
+          ) {
+            void saveConfig({ ...clone(DEFAULTS), seedVersion: SEED_VERSION });
+            panel.close();
+          }
+        },
+      },
+      { label: 'Cancel', onClick: (panel) => panel.close() },
+      {
+        label: 'Save',
+        primary: true,
+        onClick: (panel) => {
+          void saveConfig(collect());
+          panel.close();
+        },
+      },
+    ],
   });
 }
 
-if (typeof GM_registerMenuCommand === 'function') {
-  GM_registerMenuCommand('⚙️ Configure mention bots…', openConfig);
-}
+menuCommand('⚙️ Configure mention bots…', openConfig);

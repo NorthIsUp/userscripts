@@ -15,12 +15,13 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
-          node-version: 22
+          node-version: 24  # type stripping runs the .ts tests directly
           cache: npm
           cache-dependency-path: package-lock.json
 
       - run: npm ci
       - run: npm run lint
+      - run: npm test
       - run: npm run build
 
       # Assets land at a stable URL that never needs bumping:

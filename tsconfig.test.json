@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // Node's type stripping resolves the real file, so tests import "./ui.ts".
+    "allowImportingTsExtensions": true,
+    "types": ["node", "greasemonkey"]
+  },
+  "include": ["src/**/*.test.ts", "src/lib/globals.d.ts"],
+  "exclude": []
+}
