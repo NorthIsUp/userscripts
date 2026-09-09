@@ -11,6 +11,7 @@ userscript manager pulls future versions on its own (whenever `@version` rises).
 
 | Script | What it does |
 |--------|--------------|
+| [github-pr-list-accepted](https://github.com/NorthIsUp/userscripts/releases/latest/download/github-pr-list-accepted.user.js) | Green-tints and collapses accepted PRs on a repo's PR list |
 | [github-pr-submit-review](https://github.com/NorthIsUp/userscripts/releases/latest/download/github-pr-submit-review.user.js) | Review action icons on the GitHub PR page — approve, approve/reject/comment, close |
 | [github-mention-bots](https://github.com/NorthIsUp/userscripts/releases/latest/download/github-mention-bots.user.js) | Configurable bots in GitHub's @-mention autocomplete |
 | [github-tokens-link](https://github.com/NorthIsUp/userscripts/releases/latest/download/github-tokens-link.user.js) | "Tokens" link under Settings in the GitHub user menu |
@@ -109,9 +110,24 @@ Both render inside a shadow root with `all: initial` and a single set of color
 tokens that follow the page's light/dark scheme — pages we inject into (GitHub
 especially) have CSS aggressive enough to wreck anything less isolated.
 
+## Styling GitHub's PR list
+
+`github-pr-list-accepted` deliberately does as little as possible in JS: it
+works out which PRs are accepted (GitHub's search, not the row markup — see the
+script's header comment) and puts `data-accepted-pr="approved" | "mine"` on the
+row, plus `data-accepted-pr-display` on `<html>`. Everything visible is one
+stylesheet the script injects, so its rules can be replaced from a userstyle the
+same way row tints by author are:
+
+```css
+.js-issue-row:has(a[title*="created by dependabot"]) { background-color: rgba(140, 149, 159, 0.12); }
+[data-accepted-pr="mine"] { background-color: rgba(46, 160, 67, 0.18); }
+```
+
+
 ## Releases
 
 Every push to `main` runs `.github/workflows/ci.yaml`: typecheck, build, then
-publish a release tagged `v<run number>` with all eight scripts attached. The
+publish a release tagged `v<run number>` with all nine scripts attached. The
 `releases/latest/download/<script>.user.js` URLs above always point at that
 newest release, so update checks never need a version or branch in the path.
