@@ -33,6 +33,7 @@ export function buildHeader(def) {
     ...(def.require ?? []).map((r) => line('require', r)),
     line('run-at', def.runAt),
     ...(def.grant ?? ['none']).map((g) => line('grant', g)),
+    ...(def.connect ?? []).map((c) => line('connect', c)),
     ...(def.noframes ? [line('noframes', '').trimEnd()] : []),
     line('updateURL', url),
     line('downloadURL', url),
