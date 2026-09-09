@@ -11,6 +11,7 @@ userscript manager pulls future versions on its own (whenever `@version` rises).
 
 | Script | What it does |
 |--------|--------------|
+| [github-releases-install](https://github.com/NorthIsUp/userscripts/releases/latest/download/github-releases-install.user.js) | Install buttons on a repo's releases page, plus "install all missing" |
 | [github-pr-list-accepted](https://github.com/NorthIsUp/userscripts/releases/latest/download/github-pr-list-accepted.user.js) | Green-tints and collapses accepted PRs on a repo's PR list |
 | [github-pr-submit-review](https://github.com/NorthIsUp/userscripts/releases/latest/download/github-pr-submit-review.user.js) | Review action icons on the GitHub PR page — approve, approve/reject/comment, close |
 | [github-mention-bots](https://github.com/NorthIsUp/userscripts/releases/latest/download/github-mention-bots.user.js) | Configurable bots in GitHub's @-mention autocomplete |
@@ -128,6 +129,6 @@ same way row tints by author are:
 ## Releases
 
 Every push to `main` runs `.github/workflows/ci.yaml`: typecheck, build, then
-publish a release tagged `v<run number>` with all nine scripts attached. The
+publish a release tagged `v<run number>` with all ten scripts attached. The
 `releases/latest/download/<script>.user.js` URLs above always point at that
 newest release, so update checks never need a version or branch in the path.

@@ -15,6 +15,8 @@ export type ScriptMeta = {
   runAt: 'document-start' | 'document-end' | 'document-idle';
   /** Defaults to ["none"]. */
   grant?: string[];
+  /** Hosts GM.xmlHttpRequest may reach, as @connect lines. */
+  connect?: string[];
   /** Key in icons.mjs; @icon64 is derived by rescaling. */
   icon?: 'github' | 'graphite' | 'geo' | 'okta';
   /** Defaults to this script's own URL under the repo; null omits it. */
