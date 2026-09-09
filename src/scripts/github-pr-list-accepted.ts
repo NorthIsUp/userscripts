@@ -340,13 +340,17 @@ async function refresh(force = false) {
   state.key = key;
   const token = ++run;
 
+  // `reviewed-by:@me` needs a signed-in session to resolve; without one the
+  // "mine" query would quietly match nothing at all.
+  const mode: Mode = config.mode === 'mine' && !currentUser() ? 'approved' : config.mode;
+
   try {
     const paths = new Map<string, Mode>();
-    for (const path of await acceptedPaths(config.mode)) paths.set(path, config.mode);
+    for (const path of await acceptedPaths(mode)) paths.set(path, mode);
 
     // A second pass so the ones you signed off on read differently from the
     // ones somebody else did. Pointless when `mine` is already the whole set.
-    if (config.mode === 'approved' && config.markMine && currentUser()) {
+    if (mode === 'approved' && config.markMine && currentUser()) {
       for (const path of await acceptedPaths('mine')) {
         if (paths.has(path)) paths.set(path, 'mine');
       }
