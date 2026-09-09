@@ -314,7 +314,11 @@ export function settingsEditor<T extends Record<string, unknown>>(
         option.textContent = choice.label;
         select.appendChild(option);
       }
+      // A value that isn't one of the options leaves selectedIndex at -1, so
+      // the control renders blank and reads back as ''. Fall back to the first
+      // option instead, the way the number branch falls back to its old value.
       select.value = String(value ?? '');
+      if (select.selectedIndex < 0) select.selectedIndex = 0;
       controls.set(setting.key, select);
       label.append(setting.label, select);
       el.appendChild(label);
@@ -355,7 +359,8 @@ export function settingsEditor<T extends Record<string, unknown>>(
         const control = controls.get(setting.key);
         if (!control) continue;
         if (setting.kind === 'boolean') out[setting.key] = (control as HTMLInputElement).checked;
-        else if (setting.kind === 'select') out[setting.key] = control.value;
+        else if (setting.kind === 'select')
+          out[setting.key] = control.value || String(values[setting.key] ?? '');
         else if (setting.kind === 'number') {
           const n = Number.parseInt(control.value, 10);
           const clamped = Number.isNaN(n) ? Number(values[setting.key]) : n;
