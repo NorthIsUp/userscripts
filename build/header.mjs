@@ -10,9 +10,11 @@ function line(key, value) {
 
 /** @param {{ file: string } & import("../src/lib/meta").ScriptMeta} def */
 export function buildHeader(def) {
-  // Release assets, not raw files: this URL always resolves to the newest
-  // release, so a version bump needs no header edit and no branch pinning.
-  const url = `https://github.com/${repo}/releases/latest/download/${def.file}.user.js`;
+  // The `dist` branch CI force-pushes on every build, not the release asset.
+  // Both always hold the newest build, but raw serves text/plain inline where a
+  // release asset is served as an attachment — and a download is not something
+  // a userscript manager can offer to install.
+  const url = `https://raw.githubusercontent.com/${repo}/dist/${def.file}.user.js`;
   const icon = def.icon ? icons[def.icon] : null;
   // Only worth a second directive when the artwork actually rescales.
   const icon64 = icon && atSize(icon, 64) !== icon ? atSize(icon, 64) : null;

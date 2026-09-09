@@ -1,26 +1,33 @@
 # userscripts
 
 Personal userscripts, written in TypeScript and built into standalone
-`*.user.js` files that ship as GitHub release assets.
+`*.user.js` files, published to a `dist` branch and attached to every release.
 
 ## Install
 
-Each link is a permanent URL that always resolves to the newest release, which
-is also what the scripts' own `@updateURL` points at — install once, and your
-userscript manager pulls future versions on its own (whenever `@version` rises).
+Each link is a permanent URL that always holds the newest build, and is what the
+scripts' own `@updateURL` points at — install once, and your userscript manager
+pulls future versions on its own (whenever `@version` rises).
+
+They point at the `dist` branch through `raw.githubusercontent.com`, not at the
+release assets, for one reason: raw serves `text/plain` inline, while a release
+asset comes back as `Content-Disposition: attachment`. A browser saves an
+attachment rather than rendering it, so the manager never sees a page to offer
+an install on — clicking a release asset just downloads a file. The releases
+still carry every build; they're for archaeology, not for installing.
 
 | Script | What it does |
 |--------|--------------|
-| [github-releases-install](https://github.com/NorthIsUp/userscripts/releases/latest/download/github-releases-install.user.js) | Install buttons on a repo's releases page, plus "install all missing" |
-| [github-pr-list-accepted](https://github.com/NorthIsUp/userscripts/releases/latest/download/github-pr-list-accepted.user.js) | Green-tints and collapses accepted PRs on a repo's PR list |
-| [github-pr-submit-review](https://github.com/NorthIsUp/userscripts/releases/latest/download/github-pr-submit-review.user.js) | Review action icons on the GitHub PR page — approve, approve/reject/comment, close |
-| [github-mention-bots](https://github.com/NorthIsUp/userscripts/releases/latest/download/github-mention-bots.user.js) | Configurable bots in GitHub's @-mention autocomplete |
-| [github-tokens-link](https://github.com/NorthIsUp/userscripts/releases/latest/download/github-tokens-link.user.js) | "Tokens" link under Settings in the GitHub user menu |
-| [github-open-in-graphite](https://github.com/NorthIsUp/userscripts/releases/latest/download/github-open-in-graphite.user.js) | "Open in Graphite" icon on GitHub PR headers |
-| [graphite-open-in-github](https://github.com/NorthIsUp/userscripts/releases/latest/download/graphite-open-in-github.user.js) | "Open in GitHub" button on Graphite PR rows |
-| [deny-geolocation](https://github.com/NorthIsUp/userscripts/releases/latest/download/deny-geolocation.user.js) | Auto-deny geolocation prompts, per-site allowlist |
-| [okta-autofill-fastpass](https://github.com/NorthIsUp/userscripts/releases/latest/download/okta-autofill-fastpass.user.js) | Autofill Okta username + click FastPass |
-| [haproxy-stats-emojis](https://github.com/NorthIsUp/userscripts/releases/latest/download/haproxy-stats-emojis.user.js) | 🟢/🔴 health emojis on HAProxy stats section headers |
+| [github-releases-install](https://raw.githubusercontent.com/NorthIsUp/userscripts/dist/github-releases-install.user.js) | Install buttons on a repo's releases page, plus "install all missing" |
+| [github-pr-list-accepted](https://raw.githubusercontent.com/NorthIsUp/userscripts/dist/github-pr-list-accepted.user.js) | Green-tints and collapses accepted PRs on a repo's PR list |
+| [github-pr-submit-review](https://raw.githubusercontent.com/NorthIsUp/userscripts/dist/github-pr-submit-review.user.js) | Review action icons on the GitHub PR page — approve, approve/reject/comment, close |
+| [github-mention-bots](https://raw.githubusercontent.com/NorthIsUp/userscripts/dist/github-mention-bots.user.js) | Configurable bots in GitHub's @-mention autocomplete |
+| [github-tokens-link](https://raw.githubusercontent.com/NorthIsUp/userscripts/dist/github-tokens-link.user.js) | "Tokens" link under Settings in the GitHub user menu |
+| [github-open-in-graphite](https://raw.githubusercontent.com/NorthIsUp/userscripts/dist/github-open-in-graphite.user.js) | "Open in Graphite" icon on GitHub PR headers |
+| [graphite-open-in-github](https://raw.githubusercontent.com/NorthIsUp/userscripts/dist/graphite-open-in-github.user.js) | "Open in GitHub" button on Graphite PR rows |
+| [deny-geolocation](https://raw.githubusercontent.com/NorthIsUp/userscripts/dist/deny-geolocation.user.js) | Auto-deny geolocation prompts, per-site allowlist |
+| [okta-autofill-fastpass](https://raw.githubusercontent.com/NorthIsUp/userscripts/dist/okta-autofill-fastpass.user.js) | Autofill Okta username + click FastPass |
+| [haproxy-stats-emojis](https://raw.githubusercontent.com/NorthIsUp/userscripts/dist/haproxy-stats-emojis.user.js) | 🟢/🔴 health emojis on HAProxy stats section headers |
 
 ## Layout
 
@@ -34,7 +41,8 @@ build/meta.mjs          reads each script's `meta` export at build time
 rollup.config.mjs       one bundle per script → dist/
 ```
 
-Nothing built is committed; `dist/` is gitignored and CI publishes it.
+Nothing built is committed to `main`; `dist/` is gitignored, and CI publishes
+the bundles to the orphan `dist` branch and to each release.
 
 ## Header metadata
 
@@ -56,8 +64,8 @@ export const meta: ScriptMeta = {
 ```
 
 Defaults fill in the rest: `@grant none`, a `@namespace` of this script's own
-URL under the repo, and `@updateURL`/`@downloadURL` pointing at its release
-asset. The namespace is per-script on purpose — a userscript manager identifies
+URL under the repo, and `@updateURL`/`@downloadURL` pointing at its build on the
+`dist` branch. The namespace is per-script on purpose — a userscript manager identifies
 a script by `@namespace` + `@name`, so a shared namespace lets look-alike names
 match each other and offer to overwrite the wrong script. `@icon64` is derived from `@icon` by rescaling, so
 each icon is stored exactly once in `icons.mjs`.
@@ -129,6 +137,7 @@ same way row tints by author are:
 ## Releases
 
 Every push to `main` runs `.github/workflows/ci.yaml`: typecheck, build, then
-publish a release tagged `v<run number>` with all ten scripts attached. The
-`releases/latest/download/<script>.user.js` URLs above always point at that
-newest release, so update checks never need a version or branch in the path.
+force-push the ten bundles to the orphan `dist` branch and publish a release
+tagged `v<run number>` with the same files attached. The `raw.…/dist/<script>.user.js`
+URLs above always hold that newest build, so update checks never need a version
+or a tag in the path.

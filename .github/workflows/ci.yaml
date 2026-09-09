@@ -24,6 +24,29 @@ jobs:
       - run: npm test
       - run: npm run build
 
+      # Release assets are served as attachments, so a browser saves them
+      # instead of rendering them, and no userscript manager ever sees a page to
+      # offer an install on. raw.githubusercontent.com serves the same bytes as
+      # inline text/plain, which is the URL shape managers do intercept — so the
+      # same build is force-pushed to an orphan `dist` branch, and that is what
+      # @downloadURL and the README's install links point at. main stays free of
+      # build output; this branch holds nothing but the bundles.
+      - name: publish dist branch
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          work="$(mktemp -d)"
+          cp dist/*.user.js "$work"/
+          cd "$work"
+          git init -q -b dist
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -qm "Build ${{ github.sha }}"
+          git push -q --force \
+            "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" dist
+
       # Assets land at a stable URL that never needs bumping:
       # https://github.com/<repo>/releases/latest/download/<script>.user.js
       - name: release

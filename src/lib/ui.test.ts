@@ -79,6 +79,27 @@ describe('settingsEditor', () => {
     select.value = 'mine';
     assert.deepEqual(editor.read(), { mode: 'mine' });
   });
+
+  it('falls back to the first option when the value is not one of them', () => {
+    const editor = ui.settingsEditor(
+      [
+        {
+          key: 'mode',
+          kind: 'select',
+          label: 'Mode',
+          options: [
+            { value: 'approved', label: 'Approved' },
+            { value: 'mine', label: 'Mine' },
+          ],
+        },
+      ],
+      { mode: 'nonsense' },
+    );
+
+    const select = editor.el.querySelector('select') as HTMLSelectElement;
+    assert.equal(select.value, 'approved');
+    assert.deepEqual(editor.read(), { mode: 'approved' });
+  });
 });
 
 describe('rowsEditor', () => {

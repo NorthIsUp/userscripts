@@ -26,7 +26,7 @@ import { menuCommand, openPanel, settingsEditor, toast } from '../lib/ui';
 
 export const meta: ScriptMeta = {
   name: 'Code Helpers: GitHub PR list — Accepted PRs',
-  version: '1.0.0',
+  version: '1.1.0',
   description:
     'Tints accepted pull requests green and collapses them to one line on a repo\'s PR list — "accepted" being GitHub\'s review decision (code owners) or your own approval.',
   match: ['https://github.com/*/*/pulls*'],
@@ -141,32 +141,54 @@ const store = new DataStore<Config>({
 
 let config: Config = { ...DEFAULTS };
 
-async function saveConfig(next: Config) {
-  config = next;
-  await store.setData(next);
-  void refresh(true);
+/** The settings that decide WHICH PRs are accepted, as opposed to how they look. */
+function lookupKey(cfg: Config): string {
+  return [cfg.mode, cfg.markMine, cfg.pages].join('|');
 }
 
-// Until this resolves the defaults are live, which is what a fresh install
-// would use anyway — and a storage failure must not take the script down.
+async function saveConfig(next: Config) {
+  // Switching collapse/dim/hide is one attribute on <html> — re-running the
+  // lookup for it would cost four page fetches to change a stylesheet match.
+  const relook = lookupKey(next) !== lookupKey(config);
+  config = next;
+  if (relook) void refresh(true);
+  else decorate();
+  await store.setData(next);
+}
+
+let loaded = false;
+
+// Nothing is looked up until this resolves: firing the fetches under the
+// defaults and again under the stored config would double every page view.
+// A storage failure still lands in finally, so the defaults go live either way.
 store
   .loadData()
   .then((saved) => {
     config = { ...DEFAULTS, ...saved };
-    void refresh(true);
   })
-  .catch((e) => console.error('[accepted-pr] config load failed', e));
+  .catch((e) => console.error('[accepted-pr] config load failed', e))
+  .finally(() => {
+    loaded = true;
+    void refresh(true);
+  });
 
 const DEFAULT_QUERY = 'is:open is:pr';
 const PR_PATH = /^\/[^/]+\/[^/]+\/pull\/\d+$/;
-// Classic rows carry id="issue_123"; the React list uses list items. `closest`
-// takes the nearest match either way, so the order here doesn't matter.
-const ROW_SELECTOR =
-  '.js-issue-row, [id^="issue_"], [data-testid="list-view-item"], li, .Box-row';
+// Classic rows carry id="issue_123"; the React list marks its own list items.
+// Deliberately no bare `li`: that matched sub-lists inside a row, and any PR
+// link elsewhere on the page (a nav item, a recently-viewed widget) would have
+// dragged an unrelated container in as if it were a row.
+const ROW_SELECTOR = '.js-issue-row, [id^="issue_"], [data-testid="list-view-item"], .Box-row';
 
 /** The query the list is currently showing, as typed into GitHub's search box. */
 function currentQuery(): string {
   return (new URLSearchParams(location.search).get('q') || '').trim() || DEFAULT_QUERY;
+}
+
+/** Which page of that query is on screen. */
+function currentPage(): number {
+  const page = Number.parseInt(new URLSearchParams(location.search).get('page') || '1', 10);
+  return Number.isNaN(page) || page < 1 ? 1 : page;
 }
 
 /** That query, with our own review qualifiers swapped in for any it had. */
@@ -190,7 +212,12 @@ async function acceptedPaths(mode: Mode): Promise<Set<string>> {
   const query = acceptedQuery(mode);
   const found = new Set<string>();
 
-  for (let page = 1; page <= config.pages; page++) {
+  // The approved subset paginates on its own, so page 4 of the list is not
+  // covered by page 4 of this query — only by scanning from the top. Deeper
+  // pages therefore need a deeper scan, still bounded by the setting.
+  const depth = config.pages + currentPage() - 1;
+
+  for (let page = 1; page <= depth; page++) {
     const url = `${location.pathname}?q=${encodeURIComponent(query)}&page=${page}`;
     const res = await fetch(url, { credentials: 'same-origin' });
     if (!res.ok) throw new Error(`${res.status} ${res.statusText} for ${url}`);
@@ -287,7 +314,10 @@ const DISPLAYS: { value: Display; label: string; title: string }[] = [
 /** A line above the list: how many are accepted, and what to do with them. */
 function renderBar(accepted: number, list: HTMLElement | null) {
   const existing = document.getElementById(BAR);
-  if (!list || accepted === 0) {
+  // A <div> spliced into a <ul> is invalid markup, and React drops any child it
+  // did not render — so the bar goes immediately before the list instead.
+  const anchor = list?.parentElement;
+  if (!list || !anchor || accepted === 0) {
     existing?.remove();
     return;
   }
@@ -325,18 +355,23 @@ function renderBar(accepted: number, list: HTMLElement | null) {
   settings.addEventListener('click', openConfig);
   bar.appendChild(settings);
 
-  if (!existing) list.insertBefore(bar, list.firstChild);
+  if (!existing) anchor.insertBefore(bar, list);
 }
 
-const state = { key: '', paths: new Map<string, Mode>() };
+const state = { key: '', paths: new Map<string, Mode>(), retryAt: 0 };
 let run = 0;
 
 /** Look acceptance up again — once per (query, settings), unless forced. */
 async function refresh(force = false) {
-  const key = [location.pathname, currentQuery(), config.mode, config.markMine, config.pages].join(
-    '|',
-  );
+  if (!loaded) return;
+
+  const key = [location.pathname, currentQuery(), currentPage(), lookupKey(config)].join('|');
   if (!force && key === state.key) return;
+  // decorate() runs on every DOM mutation, so a failing lookup gets a cooldown
+  // rather than one retry per frame.
+  if (!force && Date.now() < state.retryAt) return;
+  // Claimed, not committed: a failed lookup clears it below so the next DOM
+  // tick can retry, rather than leaving the list unmarked until you navigate.
   state.key = key;
   const token = ++run;
 
@@ -358,15 +393,24 @@ async function refresh(force = false) {
 
     if (token !== run) return;
     state.paths = paths;
-    decorate();
+    state.retryAt = 0;
   } catch (e) {
     if (token !== run) return;
+    // Drop the key so a later tick tries again, but keep the stale set from
+    // being painted onto a list it no longer describes.
+    state.key = '';
+    state.paths = new Map();
+    state.retryAt = Date.now() + 30_000;
     console.error('[accepted-pr] lookup failed', e);
     toast({
       text: 'Could not read approval state from GitHub — the PR list is left as-is.',
       tone: 'danger',
     });
   }
+
+  // Outside the try: a DOM failure here is our bug, not a failed lookup, and
+  // must not be reported to the user as one.
+  decorate();
 }
 
 function openConfig() {
@@ -396,8 +440,7 @@ function openConfig() {
   openPanel({
     id: 'accepted-pr-config-host',
     title: 'Accepted pull requests',
-    hint:
-      'Acceptance comes from GitHub’s own search: this list’s query, re-run with review:approved — its review decision, which on a repo that requires code owner review means the code owners have signed off. GitHub has no “approved-by:” qualifier, so “I reviewed it” (reviewed-by:@me) is as close as it gets to “I approved it”.',
+    hint: 'Acceptance comes from GitHub’s own search: this list’s query, re-run with review:approved — its review decision, which on a repo that requires code owner review means the code owners have signed off. GitHub has no “approved-by:” qualifier, so “I reviewed it” (reviewed-by:@me) is as close as it gets to “I approved it”.',
     build: (body) => body.append(settings.el),
     footer: [
       { label: 'Cancel', onClick: (panel) => panel.close() },

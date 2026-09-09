@@ -27,7 +27,7 @@ import { menuCommand, openPanel, rowsEditor, settingsEditor } from '../lib/ui';
 
 export const meta: ScriptMeta = {
   name: 'Code Helpers — GitHub @-mention Bots',
-  version: '3.2.3',
+  version: '3.2.4',
   description:
     'Adds configurable "bots" to the @-mention autocomplete on GitHub, with a config panel + storage.',
   match: ['https://github.com/*'],
