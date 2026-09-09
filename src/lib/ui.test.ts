@@ -52,6 +52,33 @@ describe('settingsEditor', () => {
     input.value = 'nonsense';
     assert.equal(editor.read().count, 5);
   });
+
+  it('renders a select and reads back the chosen option', () => {
+    const editor = ui.settingsEditor(
+      [
+        {
+          key: 'mode',
+          kind: 'select',
+          label: 'Mode',
+          options: [
+            { value: 'approved', label: 'Approved' },
+            { value: 'mine', label: 'Mine' },
+          ],
+        },
+      ],
+      { mode: 'approved' },
+    );
+
+    const select = editor.el.querySelector('select') as HTMLSelectElement;
+    assert.equal(select.value, 'approved');
+    assert.deepEqual(
+      [...select.options].map((o) => o.value),
+      ['approved', 'mine'],
+    );
+
+    select.value = 'mine';
+    assert.deepEqual(editor.read(), { mode: 'mine' });
+  });
 });
 
 describe('rowsEditor', () => {

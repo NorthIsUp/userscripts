@@ -44,7 +44,7 @@ const TOKENS = `
   button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
   button.plain { background: none; border: none; opacity: 0.6; padding: 2px 6px; }
   button.plain:hover { opacity: 1; }
-  input {
+  input, select {
     font: inherit;
     font-size: 13px;
     color: var(--fg);
@@ -288,7 +288,8 @@ export function openPanel(opts: PanelOptions): Panel | null {
 export type Setting =
   | { key: string; kind: 'boolean'; label: string }
   | { key: string; kind: 'number'; label: string; min?: number; max?: number }
-  | { key: string; kind: 'text'; label: string; placeholder?: string };
+  | { key: string; kind: 'text'; label: string; placeholder?: string }
+  | { key: string; kind: 'select'; label: string; options: { value: string; label: string }[] };
 
 export type Editor<T> = { el: HTMLElement; read: () => T };
 
@@ -299,13 +300,29 @@ export function settingsEditor<T extends Record<string, unknown>>(
 ): Editor<Partial<T>> {
   const el = document.createElement('div');
   el.className = 'settings';
-  const inputs = new Map<string, HTMLInputElement>();
+  const controls = new Map<string, HTMLInputElement | HTMLSelectElement>();
 
   for (const setting of settings) {
     const label = document.createElement('label');
-    const input = document.createElement('input');
-    inputs.set(setting.key, input);
     const value = values[setting.key];
+
+    if (setting.kind === 'select') {
+      const select = document.createElement('select');
+      for (const choice of setting.options) {
+        const option = document.createElement('option');
+        option.value = choice.value;
+        option.textContent = choice.label;
+        select.appendChild(option);
+      }
+      select.value = String(value ?? '');
+      controls.set(setting.key, select);
+      label.append(setting.label, select);
+      el.appendChild(label);
+      continue;
+    }
+
+    const input = document.createElement('input');
+    controls.set(setting.key, input);
 
     switch (setting.kind) {
       case 'boolean':
@@ -335,17 +352,18 @@ export function settingsEditor<T extends Record<string, unknown>>(
     read: () => {
       const out: Record<string, unknown> = {};
       for (const setting of settings) {
-        const input = inputs.get(setting.key);
-        if (!input) continue;
-        if (setting.kind === 'boolean') out[setting.key] = input.checked;
+        const control = controls.get(setting.key);
+        if (!control) continue;
+        if (setting.kind === 'boolean') out[setting.key] = (control as HTMLInputElement).checked;
+        else if (setting.kind === 'select') out[setting.key] = control.value;
         else if (setting.kind === 'number') {
-          const n = Number.parseInt(input.value, 10);
+          const n = Number.parseInt(control.value, 10);
           const clamped = Number.isNaN(n) ? Number(values[setting.key]) : n;
           out[setting.key] = Math.max(
             setting.min ?? -Infinity,
             Math.min(setting.max ?? Infinity, clamped),
           );
-        } else out[setting.key] = input.value.trim();
+        } else out[setting.key] = control.value.trim();
       }
       return out as Partial<T>;
     },
