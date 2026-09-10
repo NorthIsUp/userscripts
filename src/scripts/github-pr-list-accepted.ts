@@ -26,7 +26,7 @@ import { menuCommand, openPanel, settingsEditor, toast } from '../lib/ui';
 
 export const meta: ScriptMeta = {
   name: 'Code Helpers: GitHub PR list — Accepted PRs',
-  version: '1.1.0',
+  version: '1.1.1',
   description:
     'Tints accepted pull requests green and collapses them to one line on a repo\'s PR list — "accepted" being GitHub\'s review decision (code owners) or your own approval.',
   match: ['https://github.com/*/*/pulls*'],
@@ -242,7 +242,9 @@ function rowsOnPage(): Map<string, HTMLElement> {
     const path = prPath(link);
     // The title link comes first in DOM order, so the first hit wins the row.
     if (!path || rows.has(path)) continue;
-    const row = link.closest<HTMLElement>(ROW_SELECTOR);
+    // From the link's PARENT: the title anchor's own id is "issue_123_link",
+    // which matches the row selector, and closest() would hand back the anchor.
+    const row = link.parentElement?.closest<HTMLElement>(ROW_SELECTOR);
     if (row) rows.set(path, row);
   }
   return rows;
