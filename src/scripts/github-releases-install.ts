@@ -24,7 +24,7 @@ import { compareVersions } from '../lib/version';
 
 export const meta: ScriptMeta = {
   name: 'Code Helpers: GitHub Releases — Install Userscripts',
-  version: '1.1.0',
+  version: '1.2.0',
   description:
     'Install buttons beside every .user.js asset on a repo\'s releases page, plus "install all missing", installing from each script\'s own @downloadURL so the browser gets a page instead of a download.',
   match: ['https://github.com/*/*/releases*'],
@@ -270,7 +270,19 @@ function record(key: string, answer: Answer) {
   render();
 }
 
-/** Ask the manager about one script, once per page load (and after installs). */
+/** Drop every cached answer so the next render asks the manager again. */
+function forgetProbes() {
+  probed.clear();
+  render();
+}
+
+// Coming back from an install tab is exactly when the answer changes.
+addEventListener('focus', forgetProbes);
+addEventListener('visibilitychange', () => {
+  if (!document.hidden) forgetProbes();
+});
+
+/** Ask the manager about one script; answers are re-asked on every focus. */
 function askManager(asset: Asset) {
   const header = data.headers[asset.url];
   if (!header || probed.has(asset.key)) return;
@@ -302,26 +314,35 @@ function hintOnce() {
 
 function install(asset: Asset, background = false) {
   const header = data.headers[asset.url];
-  data.installed[asset.key] = {
-    // Null until the header lands; readHeader backfills it.
-    version: header?.version ?? null,
-    tag: asset.tag,
-    at: Date.now(),
-  };
-  save();
+  // Only guess where nothing can be asked: with a manager bridge the state is
+  // read back from the manager, and a note saying "installed" for an install
+  // you cancelled would be worse than no note at all.
+  if (!bridge()) {
+    data.installed[asset.key] = {
+      // Null until the header lands; readHeader backfills it.
+      version: header?.version ?? null,
+      tag: asset.tag,
+      at: Date.now(),
+    };
+    save();
+  }
 
   // The author's own install URL is served inline as text where the release
   // asset is served as a download, so prefer it whenever the header gave us one.
   GM.openInTab(header?.downloadURL ?? asset.url, background);
   hintOnce();
 
-  // Whatever the manager said before is now stale.
+  // Whatever the manager said before is now stale. It only becomes true once
+  // you confirm the install, which takes as long as it takes.
   managers.delete(asset.key);
   probed.delete(asset.key);
-  setTimeout(() => {
-    askManager(asset);
-    render();
-  }, 4_000);
+  for (const delay of [2_000, 5_000, 10_000, 20_000]) {
+    setTimeout(() => {
+      probed.delete(asset.key);
+      askManager(asset);
+      render();
+    }, delay);
+  }
 
   render();
 }
