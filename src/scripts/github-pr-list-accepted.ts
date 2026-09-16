@@ -26,7 +26,7 @@ import { menuCommand, openPanel, settingsEditor, toast } from '../lib/ui';
 
 export const meta: ScriptMeta = {
   name: 'Code Helpers: GitHub PR list — Accepted PRs',
-  version: '1.1.1',
+  version: '1.1.2',
   description:
     'Tints accepted pull requests green and collapses them to one line on a repo\'s PR list — "accepted" being GitHub\'s review decision (code owners) or your own approval.',
   match: ['https://github.com/*/*/pulls*'],
@@ -174,11 +174,20 @@ store
 
 const DEFAULT_QUERY = 'is:open is:pr';
 const PR_PATH = /^\/[^/]+\/[^/]+\/pull\/\d+$/;
-// Classic rows carry id="issue_123"; the React list marks its own list items.
-// Deliberately no bare `li`: that matched sub-lists inside a row, and any PR
-// link elsewhere on the page (a nav item, a recently-viewed widget) would have
-// dragged an unrelated container in as if it were a row.
-const ROW_SELECTOR = '.js-issue-row, [id^="issue_"], [data-testid="list-view-item"], .Box-row';
+// Classic rows carry id="issue_123"; the React list (the "Preview" pulls
+// dashboard, 2026) renders each PR as a plain <li> whose only stable hooks are
+// hashed CSS-module classes — so it is matched through its parent <ul>, which
+// GitHub tags with data-listview-component="items-list". Deliberately no bare
+// `li`: that matched sub-lists inside a row, and any PR link elsewhere on the
+// page (a nav item, a recently-viewed widget) would have dragged an unrelated
+// container in as if it were a row.
+const ROW_SELECTOR = [
+  '.js-issue-row',
+  '[id^="issue_"]',
+  '[data-testid="list-view-item"]',
+  'ul[data-listview-component="items-list"] > li',
+  '.Box-row',
+].join(', ');
 
 /** The query the list is currently showing, as typed into GitHub's search box. */
 function currentQuery(): string {

@@ -129,8 +129,23 @@ stylesheet the script injects, so its rules can be replaced from a userstyle the
 same way row tints by author are:
 
 ```css
-.js-issue-row:has(a[title*="created by dependabot"]) { background-color: rgba(140, 149, 159, 0.12); }
-[data-accepted-pr="mine"] { background-color: rgba(46, 160, 67, 0.18); }
+/* A PR row: the React list (2026 "Preview" dashboard) renders each PR as an
+   <li> under ul[data-listview-component="items-list"]; the classic list uses
+   .js-issue-row. Author is the "Filter by author …" link (React) or the
+   "… created by …" title (classic). Accepted rows keep their green instead. */
+:is(ul[data-listview-component="items-list"] > li, .js-issue-row):not([data-accepted-pr]):has(
+  a[data-testid="author-filter-link"][aria-label$="author dependabot[bot]"],
+  a[title*="created by dependabot"]
+) { background-color: rgba(140, 149, 159, 0.12); }
+
+/* Approved by anyone (GitHub's review decision): light green, stays open. */
+[data-accepted-pr="approved"] { background-color: rgba(46, 160, 67, 0.10); opacity: 1; }
+html [data-accepted-pr="approved"] { max-height: none; overflow: visible; }
+
+/* Approved and reviewed by me: dark green, one line, hover to expand. */
+[data-accepted-pr="mine"] { background-color: rgba(46, 160, 67, 0.28); opacity: 1; }
+html [data-accepted-pr="mine"] { max-height: 2.4em; overflow: hidden; }
+html [data-accepted-pr="mine"]:hover { max-height: none; overflow: visible; }
 ```
 
 
