@@ -6,7 +6,7 @@
     "build": "rollup -c",
     "watch": "rollup -c -w",
     "lint": "tsc --noEmit && tsc -p tsconfig.test.json --noEmit",
-    "test": "node --test \"src/**/*.test.ts\""
+    "test": "node --test \"src/**/*.test.ts\" \"build/**/*.test.mjs\""
   },
   "devDependencies": {
     "@rollup/plugin-node-resolve": "^15.2.3",

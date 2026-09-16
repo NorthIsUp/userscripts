@@ -8,25 +8,33 @@
 // shape every manager intercepts. Only with no @downloadURL does it fall back
 // to the asset itself.
 //
-// "Missing" needs to know what you already have. Tampermonkey and Violentmonkey
-// both answer that through `external.<Manager>.isInstalled(name, namespace)`,
-// so where it is exposed the state on screen is the manager's own truth. Where
-// it isn't, the script falls back to its own record of installs made through
-// these buttons — shift-click a pill to forget one, or use the menu commands.
+// "Missing" needs to know what you already have, and no manager will say so
+// from here: Tampermonkey and Violentmonkey expose `external.<Manager>
+// .isInstalled` only on the script-hosting sites they allow-list (Tampermonkey
+// 5.6 closed it everywhere else), and one script's storage is invisible to
+// another. So the scripts answer for themselves. The build gives every script
+// in this repo an extra @match for this repo's releases page and a beacon that
+// runs before anything else (build/beacon.mjs): it drops a
+// <meta name="userscript-beacon"> tag carrying the script's name, namespace and
+// version, then bails out unless the script's own @match covers the page. What
+// the buttons show is therefore what is running right now — nothing is
+// remembered, and a script that was uninstalled (or disabled) simply isn't
+// there. Scripts from other repos don't announce themselves, so on their
+// releases pages every button just reads "Install".
 //
 // The buttons are markup + one stylesheet; nothing is written to element.style.
 
 import { DataStore, GMStorageEngine } from '@sv443-network/userutils';
 import { observeDom } from '../lib/dom';
 import type { ScriptMeta } from '../lib/meta';
-import { menuCommand, toast } from '../lib/ui';
+import { toast } from '../lib/ui';
 import { compareVersions } from '../lib/version';
 
 export const meta: ScriptMeta = {
   name: 'Code Helpers: GitHub Releases — Install Userscripts',
-  version: '1.2.0',
+  version: '1.3.0',
   description:
-    'Install buttons beside every .user.js asset on a repo\'s releases page, plus "install all missing", installing from each script\'s own @downloadURL so the browser gets a page instead of a download.',
+    'Install buttons beside every .user.js asset on a repo\'s releases page, plus "install all missing", installing from each script\'s own @downloadURL so the browser gets a page instead of a download. Installed state is read live from the scripts running on the page.',
   match: ['https://github.com/*/*/releases*'],
   runAt: 'document-idle',
   icon: 'github',
@@ -38,8 +46,6 @@ export const meta: ScriptMeta = {
     'GM.listValues',
     'GM.openInTab',
     'GM.xmlHttpRequest',
-    'GM_registerMenuCommand',
-    'unsafeWindow',
   ],
   // Asset URLs redirect off github.com, so both hosts have to be reachable.
   connect: ['github.com', 'objects.githubusercontent.com'],
@@ -68,15 +74,10 @@ type Header = {
   downloadURL: string;
 };
 
-/** A manager's answer about a script, when it exposes one. */
-type Managed = { installed: boolean; version: string | null };
-
-/** Our own record, for managers that answer nothing. Null version: the header
- *  hadn't loaded when you clicked, and gets backfilled when it does. */
-type Install = { version: string | null; tag: string; at: number };
+/** What a running script says about itself, via its beacon tag. */
+type Beacon = { name: string; namespace: string; version: string };
 
 type Store = {
-  installed: Record<string, Install>;
   /** asset URL → its parsed metadata block. */
   headers: Record<string, Header>;
   /** The "your browser may just download it" explainer, shown once. */
@@ -111,7 +112,8 @@ const CSS = `
     color: var(--fgColor-attention, #d29922);
   }
   [${BUTTON}][data-state='installed'],
-  [${BUTTON}][data-state='older'] { opacity: .55; }
+  [${BUTTON}][data-state='older'],
+  [${BUTTON}][data-state='pending'] { opacity: .55; }
 
   [${ALL_ROW}] { display: flex; align-items: center; gap: 10px; }
   [${ALL_ROW}] .note { font-size: 12px; color: var(--fgColor-muted, #848d97); }
@@ -121,14 +123,18 @@ const CSS = `
 // version and the migration chain.
 const store = new DataStore<Store>({
   id: 'gh-releases-install',
-  defaultData: { installed: {}, headers: {}, hintSeen: false },
-  formatVersion: 1,
+  defaultData: { headers: {}, hintSeen: false },
+  formatVersion: 2,
   engine: new GMStorageEngine(),
   compressionFormat: null,
-  migrations: {},
+  migrations: {
+    // v1 also kept `installed`, our own record of clicks; the beacons made it
+    // redundant, and a stale record is worse than none.
+    2: (old: Partial<Store>) => ({ headers: old.headers ?? {}, hintSeen: Boolean(old.hintSeen) }),
+  },
 });
 
-let data: Store = { installed: {}, headers: {}, hintSeen: false };
+let data: Store = { headers: {}, hintSeen: false };
 let loaded = false;
 
 function save() {
@@ -143,7 +149,6 @@ store
     // Field-wise, and ours wins: rendering starts before this resolves, so a
     // header read or an install click may already have written to `data`.
     data = {
-      installed: { ...saved.installed, ...data.installed },
       headers: { ...saved.headers, ...data.headers },
       hintSeen: saved.hintSeen || data.hintSeen,
     };
@@ -178,127 +183,83 @@ function assetsOnPage(): Asset[] {
   return [...assets.values()];
 }
 
-type State = 'install' | 'update' | 'installed' | 'older';
+type State = 'install' | 'update' | 'installed' | 'older' | 'pending';
 
-/** What we believe is installed: the manager's answer, else our own record. */
-function have(asset: Asset): { version: string | null; source: string } | null {
-  const managed = managers.get(asset.key);
-  if (managed)
-    return managed.installed ? { version: managed.version, source: 'your manager' } : null;
-  const record = data.installed[asset.key];
-  return record ? { version: record.version, source: `recorded from ${record.tag}` } : null;
+// ────────────────────────────────────────────────────────────────────────
+//  What is running on this page. Every script built from this repo announces
+//  itself with a <meta name="userscript-beacon"> tag (see the note up top).
+//  Seen tags are kept in memory: GitHub's soft navigation rewrites <head>,
+//  but a script that announced once is still running in this document.
+// ────────────────────────────────────────────────────────────────────────
+const beacons = new Map<string, Beacon>();
+
+/** A manager identifies a script by @namespace + @name; so do we. */
+function identity(namespace: string, name: string): string {
+  return `${namespace}\u0000${name}`;
 }
+
+function collectBeacons() {
+  for (const tag of document.querySelectorAll<HTMLElement>('meta[name="userscript-beacon"]')) {
+    const { name = '', namespace = '', version = '' } = tag.dataset;
+    if (!name && !namespace) continue;
+    beacons.set(identity(namespace, name), { name, namespace, version });
+  }
+}
+
+/** Assets whose install tab was opened in this page's lifetime. In memory only:
+ *  whether the install actually happened is the beacon's to say, after a reload. */
+const pending = new Set<string>();
 
 function stateOf(asset: Asset): { state: State; label: string; title: string } {
   const header = data.headers[asset.url];
-  const installed = have(asset);
 
-  if (!installed) {
+  if (pending.has(asset.url)) {
+    return {
+      state: 'pending',
+      label: 'Installing…',
+      title: `${asset.file} — an install tab was opened. Reload this page to see whether it took.`,
+    };
+  }
+  if (!header) {
+    return { state: 'install', label: 'Install', title: `${asset.file} — reading its version…` };
+  }
+
+  const running = beacons.get(identity(header.namespace, header.name));
+  if (!running) {
     return {
       state: 'install',
-      label: header ? `Install ${header.version}` : 'Install',
-      title: header
-        ? `${header.name} ${header.version} — installs from ${header.downloadURL}`
-        : `${asset.file} — reading its version…`,
-    };
-  }
-  if (!header || !installed.version) {
-    return {
-      state: 'installed',
-      label: installed.version ? `Installed ${installed.version}` : 'Installed',
-      title: `${asset.file} — installed (${installed.source}). Click to install again, shift-click to forget.`,
+      label: `Install ${header.version}`,
+      title:
+        `${header.name} ${header.version} — not running on this page (not installed, disabled, ` +
+        `or a script that doesn't announce itself). Installs from ${header.downloadURL}`,
     };
   }
 
-  const order = compareVersions(header.version, installed.version);
+  const order = compareVersions(header.version, running.version);
   if (order === 0) {
     return {
       state: 'installed',
-      label: `Installed ${installed.version}`,
-      title: `Up to date (${installed.source}). Click to install again, shift-click to forget.`,
+      label: `Installed ${running.version}`,
+      title: `Up to date — ${running.name} ${running.version} is running on this page. Click to install again.`,
     };
   }
   if (order > 0) {
     return {
       state: 'update',
       label: `Update → ${header.version}`,
-      title: `You have ${installed.version} (${installed.source}); this release has ${header.version}.`,
+      title: `You have ${running.version} running; this release has ${header.version}.`,
     };
   }
   return {
     state: 'older',
     label: `Older ${header.version}`,
-    title: `This release predates what you have (${installed.version}, ${installed.source}).`,
+    title: `This release predates what you have running (${running.version}).`,
   };
 }
 
 function needsInstall(asset: Asset): boolean {
   const state = stateOf(asset).state;
   return state === 'install' || state === 'update';
-}
-
-// ────────────────────────────────────────────────────────────────────────
-//  What the manager itself knows. Tampermonkey exposes
-//  external.Tampermonkey.isInstalled(name, namespace, callback); Violentmonkey
-//  exposes external.Violentmonkey.isInstalled(name, namespace) as a promise.
-//  Neither is guaranteed to be exposed on an arbitrary site, so every use is
-//  feature-detected and failure just means "fall back to our own record".
-// ────────────────────────────────────────────────────────────────────────
-const managers = new Map<string, Managed>();
-const probed = new Set<string>();
-
-type Answer = { installed: boolean; version?: string | null };
-type Bridge = {
-  isInstalled?: (
-    name: string,
-    namespace: string,
-    cb?: (res: Answer) => void,
-  ) => Promise<Answer> | undefined;
-};
-
-function bridge(): Bridge | null {
-  // The managers hang their object off the page's window, so reach past the
-  // sandbox where the userscript manager gives us a way to.
-  const win = typeof unsafeWindow === 'undefined' ? window : unsafeWindow;
-  const ext = (win as unknown as { external?: Record<string, Bridge> }).external;
-  const found = ext?.Tampermonkey ?? ext?.Violentmonkey;
-  return typeof found?.isInstalled === 'function' ? found : null;
-}
-
-function record(key: string, answer: Answer) {
-  managers.set(key, { installed: Boolean(answer?.installed), version: answer?.version ?? null });
-  render();
-}
-
-/** Drop every cached answer so the next render asks the manager again. */
-function forgetProbes() {
-  probed.clear();
-  render();
-}
-
-// Coming back from an install tab is exactly when the answer changes.
-addEventListener('focus', forgetProbes);
-addEventListener('visibilitychange', () => {
-  if (!document.hidden) forgetProbes();
-});
-
-/** Ask the manager about one script; answers are re-asked on every focus. */
-function askManager(asset: Asset) {
-  const header = data.headers[asset.url];
-  if (!header || probed.has(asset.key)) return;
-  const api = bridge();
-  if (!api?.isInstalled) return;
-  probed.add(asset.key);
-
-  try {
-    const maybe = api.isInstalled(header.name, header.namespace, (res) => record(asset.key, res));
-    // Violentmonkey answers with a promise and ignores the callback.
-    if (maybe && typeof (maybe as Promise<Answer>).then === 'function') {
-      (maybe as Promise<Answer>).then((res) => record(asset.key, res)).catch(() => {});
-    }
-  } catch (e) {
-    console.debug('[releases-install] manager lookup unavailable', e);
-  }
 }
 
 /** Chrome's MV3 Tampermonkey can't intercept .user.js without developer mode. */
@@ -314,42 +275,14 @@ function hintOnce() {
 
 function install(asset: Asset, background = false) {
   const header = data.headers[asset.url];
-  // Only guess where nothing can be asked: with a manager bridge the state is
-  // read back from the manager, and a note saying "installed" for an install
-  // you cancelled would be worse than no note at all.
-  if (!bridge()) {
-    data.installed[asset.key] = {
-      // Null until the header lands; readHeader backfills it.
-      version: header?.version ?? null,
-      tag: asset.tag,
-      at: Date.now(),
-    };
-    save();
-  }
-
   // The author's own install URL is served inline as text where the release
   // asset is served as a download, so prefer it whenever the header gave us one.
   GM.openInTab(header?.downloadURL ?? asset.url, background);
   hintOnce();
 
-  // Whatever the manager said before is now stale. It only becomes true once
-  // you confirm the install, which takes as long as it takes.
-  managers.delete(asset.key);
-  probed.delete(asset.key);
-  for (const delay of [2_000, 5_000, 10_000, 20_000]) {
-    setTimeout(() => {
-      probed.delete(asset.key);
-      askManager(asset);
-      render();
-    }, delay);
-  }
-
-  render();
-}
-
-function forget(asset: Asset) {
-  delete data.installed[asset.key];
-  save();
+  // Whatever the manager does with that tab, this page can't see it: a newly
+  // installed script only announces itself on the next load.
+  pending.add(asset.url);
   render();
 }
 
@@ -402,12 +335,7 @@ function readHeader(asset: Asset) {
         version,
         downloadURL: field(text, 'downloadURL') || asset.url,
       };
-      // An install clicked before the version was known is backfilled here.
-      const ours = data.installed[asset.key];
-      if (ours && ours.version === null && ours.tag === asset.tag) ours.version = version;
-
       save();
-      askManager(asset);
       render();
     },
     onerror: () => console.warn('[releases-install] could not reach', asset.url),
@@ -438,7 +366,6 @@ function button(asset: Asset) {
   if (!existing) {
     btn.addEventListener('click', (e) => {
       e.preventDefault();
-      if (e.shiftKey && data.installed[asset.key]) return forget(asset);
       install(asset);
     });
     // Beside the file name, inside the row's own left-hand cell.
@@ -477,43 +404,23 @@ function allRow(list: HTMLElement, missing: number) {
 }
 
 function render() {
-  // Before storage answers, `installed` is empty and every row would read
-  // "Install" — a label that would then flip under the pointer.
+  // Before storage answers, no header is cached and every row would read a
+  // bare "Install" — a label that would then flip under the pointer.
   if (!loaded) return;
 
   const assets = assetsOnPage();
   if (!assets.length) return;
   ensureStyle();
+  collectBeacons();
 
   const missing = new Map<HTMLElement, number>();
   for (const asset of assets) {
     readHeader(asset);
-    askManager(asset);
     button(asset);
     missing.set(asset.list, (missing.get(asset.list) ?? 0) + (needsInstall(asset) ? 1 : 0));
   }
   for (const [list, count] of missing) allRow(list, count);
 }
-
-menuCommand('✅ Mark every asset on this page as installed', () => {
-  for (const asset of assetsOnPage()) {
-    data.installed[asset.key] = {
-      version: data.headers[asset.url]?.version ?? null,
-      tag: asset.tag,
-      at: Date.now(),
-    };
-  }
-  save();
-  render();
-  toast({ text: 'Recorded everything on this page as installed.' });
-});
-
-menuCommand('🧹 Forget what I have installed', () => {
-  data.installed = {};
-  save();
-  render();
-  toast({ text: 'Install records cleared.' });
-});
 
 // Assets live behind a lazily-loaded <include-fragment>, so the rows appear
 // well after load — on the releases index, only once a release is expanded.

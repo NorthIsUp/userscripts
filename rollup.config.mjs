@@ -1,6 +1,6 @@
 import pluginNodeResolve from '@rollup/plugin-node-resolve';
 import pluginTypeScript from '@rollup/plugin-typescript';
-import { buildHeader } from './build/header.mjs';
+import { buildHeader, buildIntro } from './build/header.mjs';
 import { loadScripts } from './build/meta.mjs';
 
 // The `meta` export exists for the build only; drop the keyword so the bundle
@@ -24,6 +24,8 @@ export default loadScripts().map((def) => ({
     file: `dist/${def.file}.user.js`,
     format: 'iife',
     banner: buildHeader(def),
+    // Inside the IIFE, before any module code: the beacon may `return` early.
+    intro: buildIntro(def),
     // @require'd globals (toastify) are provided by the userscript manager.
     globals: { 'toastify-js': 'Toastify' },
   },
