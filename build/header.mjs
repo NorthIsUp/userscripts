@@ -1,11 +1,28 @@
+import { beaconIntro, ownMatchCovers } from './beacon.mjs';
 import { atSize, icons } from './icons.mjs';
-
-const repo = 'NorthIsUp/userscripts';
+import { RELEASES_MATCH, repo } from './repo.mjs';
 
 const PAD = 13;
 
 function line(key, value) {
   return `// @${key.padEnd(PAD)}${value}`;
+}
+
+/** @param {{ file: string } & import("../src/lib/meta").ScriptMeta} def */
+export function namespaceOf(def) {
+  // @namespace + @name is a userscript manager's identity for a script, so
+  // every script gets its own — a shared namespace lets look-alike names
+  // (open-in-graphite vs open-in-github) match each other on install.
+  return def.namespace === null ? '' : (def.namespace ?? `https://github.com/${repo}/${def.file}`);
+}
+
+/**
+ * The code every bundle starts with: the installed-script beacon, which knows
+ * this script's identity from the same fields the header is rendered from.
+ * @param {{ file: string } & import("../src/lib/meta").ScriptMeta} def
+ */
+export function buildIntro(def) {
+  return beaconIntro({ ...def, namespace: namespaceOf(def) });
 }
 
 /** @param {{ file: string } & import("../src/lib/meta").ScriptMeta} def */
@@ -20,18 +37,19 @@ export function buildHeader(def) {
   const icon64 = icon && atSize(icon, 64) !== icon ? atSize(icon, 64) : null;
   const rows = [
     line('name', def.name),
-    // @namespace + @name is a userscript manager's identity for a script, so
-    // every script gets its own — a shared namespace lets look-alike names
-    // (open-in-graphite vs open-in-github) match each other on install.
-    ...(def.namespace === null
-      ? []
-      : [line('namespace', def.namespace ?? `https://github.com/${repo}/${def.file}`)]),
+    ...(def.namespace === null ? [] : [line('namespace', namespaceOf(def))]),
     line('version', def.version),
     line('description', def.description),
     ...(def.author ? [line('author', def.author)] : []),
     ...(icon ? [line('icon', icon)] : []),
     ...(icon64 ? [line('icon64', icon64)] : []),
     ...def.match.map((m) => line('match', m)),
+    // The beacon page (see beacon.mjs): where the release-install script asks
+    // every script here to say whether it is installed. Only added where the
+    // script's own matches don't reach it.
+    ...(ownMatchCovers(def, RELEASES_MATCH.replace(/\*$/, ''))
+      ? []
+      : [line('match', RELEASES_MATCH)]),
     ...(def.require ?? []).map((r) => line('require', r)),
     line('run-at', def.runAt),
     ...(def.grant ?? ['none']).map((g) => line('grant', g)),

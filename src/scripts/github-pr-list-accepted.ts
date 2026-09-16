@@ -26,7 +26,7 @@ import { menuCommand, openPanel, settingsEditor, toast } from '../lib/ui';
 
 export const meta: ScriptMeta = {
   name: 'Code Helpers: GitHub PR list — Accepted PRs',
-  version: '1.1.1',
+  version: '1.1.2',
   description:
     'Tints accepted pull requests green and collapses them to one line on a repo\'s PR list — "accepted" being GitHub\'s review decision (code owners) or your own approval.',
   match: ['https://github.com/*/*/pulls*'],

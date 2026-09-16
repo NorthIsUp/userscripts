@@ -18,7 +18,7 @@ still carry every build; they're for archaeology, not for installing.
 
 | Script | What it does |
 |--------|--------------|
-| [github-releases-install](https://raw.githubusercontent.com/NorthIsUp/userscripts/dist/github-releases-install.user.js) | Install buttons on a repo's releases page, plus "install all missing" |
+| [github-releases-install](https://raw.githubusercontent.com/NorthIsUp/userscripts/dist/github-releases-install.user.js) | Install buttons on a repo's releases page, plus "install all missing"; installed state read live from the scripts on the page |
 | [github-pr-list-accepted](https://raw.githubusercontent.com/NorthIsUp/userscripts/dist/github-pr-list-accepted.user.js) | Green-tints and collapses accepted PRs on a repo's PR list |
 | [github-pr-submit-review](https://raw.githubusercontent.com/NorthIsUp/userscripts/dist/github-pr-submit-review.user.js) | Review action icons on the GitHub PR page — approve, approve/reject/comment, close |
 | [github-mention-bots](https://raw.githubusercontent.com/NorthIsUp/userscripts/dist/github-mention-bots.user.js) | Configurable bots in GitHub's @-mention autocomplete |
@@ -37,6 +37,7 @@ src/lib/ui.ts           toasts + settings panels shared by every script
 src/lib/                other shared helpers (dom, github, meta type, GM globals)
 build/icons.mjs         icon data URIs, one entry per brand
 build/header.mjs        renders the ==UserScript== block
+build/beacon.mjs        the installed-script beacon every bundle starts with
 build/meta.mjs          reads each script's `meta` export at build time
 rollup.config.mjs       one bundle per script → dist/
 ```
@@ -76,6 +77,25 @@ literal: no variables, no imports, no computed values.
 
 **Bump `version` when you change a script**, otherwise userscript managers see
 no update and never fetch the new build.
+
+## Installed-script beacon
+
+No userscript manager will tell a page which scripts are installed:
+Tampermonkey and Violentmonkey expose `external.<Manager>.isInstalled` only on
+the hosting sites they allow-list (Tampermonkey 5.6 closed it everywhere else),
+and one script's storage is invisible to another. So the scripts answer for
+themselves. The build gives every script an extra
+`@match https://github.com/NorthIsUp/userscripts/releases*` and starts each
+bundle with a beacon (`build/beacon.mjs`): on that page it appends a
+`<meta name="userscript-beacon">` tag carrying the script's name, namespace and
+version, then returns out of the bundle unless the script's own `@match` covers
+the page, so nothing runs anywhere it didn't before.
+
+`github-releases-install` reads those tags and compares each against the
+release asset's own `@version`, so its buttons show what is running right now
+("Installed", "Update →", "Older"), not what was once clicked. A script that is
+uninstalled or disabled just isn't there. Scripts from other repos don't
+announce themselves, so on their releases pages every button reads "Install".
 
 ## Dev
 
