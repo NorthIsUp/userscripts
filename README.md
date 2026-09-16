@@ -142,9 +142,10 @@ especially) have CSS aggressive enough to wreck anything less isolated.
 ## Styling GitHub's PR list
 
 `github-pr-list-accepted` deliberately does as little as possible in JS: it
-works out which PRs are accepted (GitHub's search, not the row markup — see the
-script's header comment) and puts `data-accepted-pr="approved" | "mine"` on the
-row, plus `data-accepted-pr-display` on `<html>`. Everything visible is one
+works out which PRs are accepted (off the row where GitHub states a review
+decision, and out of GitHub's search where it does not — see the script's
+header comment) and puts `data-accepted-pr="approved" | "mine"` on the row,
+plus `data-accepted-pr-display` on `<html>`. Everything visible is one
 stylesheet the script injects, so its rules can be replaced from a userstyle the
 same way row tints by author are:
 
@@ -158,7 +159,10 @@ same way row tints by author are:
   a[title*="created by dependabot"]
 ) { background-color: rgba(140, 149, 159, 0.12); }
 
-/* Approved by anyone (GitHub's review decision): light green, stays open. */
+/* Approved by anyone (GitHub's review decision): light green, stays open.
+   The React list states this on the row, so it can also be had without the
+   script: li:has(button[aria-label="Filter by review: Approved"]). Who
+   approved is nowhere in the markup, so "mine" below needs the script. */
 [data-accepted-pr="approved"] { background-color: rgba(46, 160, 67, 0.10); opacity: 1; }
 html [data-accepted-pr="approved"] { max-height: none; overflow: visible; }
 

@@ -1,10 +1,14 @@
 // HOW THIS WORKS — two halves, and only the first one is JavaScript.
 //
-//  1. Which PRs are accepted? The list's markup carries no review state, so
-//     rather than scrape rows we ask GitHub the question it already answers in
-//     its own filter bar: re-run the page's query with `review:approved` bolted
-//     on (plus `reviewed-by:@me` for the "mine" mode) as a same-origin fetch,
-//     and mark every row that comes back.
+//  1. Which PRs are accepted? GitHub's list states each row's review decision
+//     now, so where every row states one we read "approved" straight off the
+//     row and fetch nothing. It never says WHO approved, though, and it goes
+//     missing on a PR whose base is not the default branch — that slot shows
+//     the base branch instead. So for "accepted by me", and for any list
+//     holding such a row, we ask GitHub the question it already answers in its
+//     own filter bar: re-run the page's query with `review:approved` bolted on
+//     (plus `reviewed-by:@me` for the "mine" mode) as a same-origin fetch, and
+//     mark every row that comes back.
 //
 //     `review:approved` is GitHub's review DECISION, not a raw approval count:
 //     on a repo that requires review from code owners it only flips once those
@@ -20,13 +24,13 @@
 
 import { DataStore, GMStorageEngine } from '@sv443-network/userutils';
 import { observeDom, octicon } from '../lib/dom';
-import { currentUser } from '../lib/github';
+import { currentUser, reviewDecision } from '../lib/github';
 import type { ScriptMeta } from '../lib/meta';
 import { menuCommand, openPanel, settingsEditor, toast } from '../lib/ui';
 
 export const meta: ScriptMeta = {
   name: 'Code Helpers: GitHub PR list — Accepted PRs',
-  version: '1.1.2',
+  version: '1.2.0',
   description:
     'Tints accepted pull requests green and collapses them to one line on a repo\'s PR list — "accepted" being GitHub\'s review decision (code owners) or your own approval.',
   match: ['https://github.com/*/*/pulls*'],
@@ -259,6 +263,12 @@ function rowsOnPage(): Map<string, HTMLElement> {
   return rows;
 }
 
+/** Does every row on the page state its own review decision? */
+function statesEveryDecision(): boolean {
+  const rows = [...rowsOnPage().values()];
+  return rows.length > 0 && rows.every((row) => reviewDecision(row) !== null);
+}
+
 function ensureStyle() {
   if (document.getElementById(STYLE)) return;
   const style = document.createElement('style');
@@ -300,7 +310,11 @@ function decorate() {
 
   for (const [path, row] of rowsOnPage()) {
     if (!list) list = row.parentElement;
-    const mode = state.paths.get(path);
+    // The lookup wins where it has an answer: it is the only thing that knows
+    // which approvals are yours. The row is consulted for the rest.
+    const mode =
+      state.paths.get(path) ??
+      (state.domApproved && reviewDecision(row) === 'approved' ? 'approved' : undefined);
     if (!mode) {
       if (row.hasAttribute(ROW)) unmark(row);
       continue;
@@ -369,7 +383,7 @@ function renderBar(accepted: number, list: HTMLElement | null) {
   if (!existing) anchor.insertBefore(bar, list);
 }
 
-const state = { key: '', paths: new Map<string, Mode>(), retryAt: 0 };
+const state = { key: '', paths: new Map<string, Mode>(), retryAt: 0, domApproved: false };
 let run = 0;
 
 /** Look acceptance up again — once per (query, settings), unless forced. */
@@ -390,20 +404,32 @@ async function refresh(force = false) {
   // "mine" query would quietly match nothing at all.
   const mode: Mode = config.mode === 'mine' && !currentUser() ? 'approved' : config.mode;
 
+  // Every rendered row states its own decision, so asking GitHub for the
+  // approved set would buy nothing. All of them, or none: one row showing its
+  // base branch instead means its approval is not on the page to be read, and
+  // reading the others would quietly drop it. Rows not rendered yet read as
+  // none, which is the old behaviour — correct, just not free.
+  const fromDom = mode === 'approved' && statesEveryDecision();
+
   try {
     const paths = new Map<string, Mode>();
-    for (const path of await acceptedPaths(mode)) paths.set(path, mode);
+    if (!fromDom) for (const path of await acceptedPaths(mode)) paths.set(path, mode);
 
     // A second pass so the ones you signed off on read differently from the
     // ones somebody else did. Pointless when `mine` is already the whole set.
     if (mode === 'approved' && config.markMine && currentUser()) {
       for (const path of await acceptedPaths('mine')) {
-        if (paths.has(path)) paths.set(path, 'mine');
+        // The mine query carries `review:approved` itself, so what it returns
+        // is approved by definition. Where the approved set came from a fetch,
+        // stay inside it anyway: both were scanned to the same depth, and a
+        // row beyond it should not be marked by one and not the other.
+        if (fromDom || paths.has(path)) paths.set(path, 'mine');
       }
     }
 
     if (token !== run) return;
     state.paths = paths;
+    state.domApproved = fromDom;
     state.retryAt = 0;
   } catch (e) {
     if (token !== run) return;
@@ -411,6 +437,7 @@ async function refresh(force = false) {
     // being painted onto a list it no longer describes.
     state.key = '';
     state.paths = new Map();
+    state.domApproved = false;
     state.retryAt = Date.now() + 30_000;
     console.error('[accepted-pr] lookup failed', e);
     toast({
