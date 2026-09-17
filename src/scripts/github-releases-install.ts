@@ -102,6 +102,10 @@ const CSS = `
   [${BUTTON}] {
     font: inherit;
     font-size: 12px;
+    /* The row is a flex container that is already full: never give up width
+       (which would clip the label) and never stretch to the row's height. */
+    flex-shrink: 0;
+    align-self: center;
     line-height: 20px;
     cursor: pointer;
     margin-left: 8px;
@@ -487,9 +491,11 @@ function button(asset: Asset) {
       if (stateOf(asset).state === 'blocked') return copyAssetURL(asset);
       install(asset);
     });
-    // Beside the file name, inside the row's own left-hand cell.
-    const link = asset.row.querySelector('a[href*="/releases/download/"]');
-    link?.parentElement?.appendChild(btn);
+    // At the end of the row, after GitHub's own columns — not beside the file
+    // name. That left-hand cell is col-12 below the lg breakpoint, so a button
+    // inside it takes width the row has already spent, and the digest, size and
+    // date in the right-hand cell (which has overflow:hidden) get clipped away.
+    asset.row.appendChild(btn);
   }
 }
 
