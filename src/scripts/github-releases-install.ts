@@ -1,12 +1,19 @@
 // HOW THIS WORKS — a release asset is served with `Content-Disposition:
-// attachment`, so navigating to one saves the file: the browser never renders
-// it, and a userscript manager never sees a page to offer an install on. We
-// can't change that header, so the button doesn't send you there when it has
-// anywhere better to go. It reads the asset's own metadata block (the first few
-// KB, over GM.xmlHttpRequest) and installs from the `@downloadURL` the author
-// declared, which is nearly always a raw/CDN URL served inline as text — the
-// shape every manager intercepts. Only with no @downloadURL does it fall back
-// to the asset itself.
+// attachment` and `Content-Type: application/octet-stream`, so navigating to
+// one saves the file: the browser never renders it, and a userscript manager
+// never sees a page to offer an install on. We can't change those headers, so
+// the button never sends you there. It reads the asset's own metadata block
+// (the first few KB, over GM.xmlHttpRequest) and installs from the
+// `@downloadURL` the author declared, which is nearly always a raw/CDN URL
+// served inline as text/plain — the shape a manager intercepts and turns into
+// its install page. If that read fails there is nowhere good to go, so the
+// button says so instead of handing you a download.
+//
+// @connect is `githubusercontent.com`, the whole domain: GitHub redirects a
+// release asset to a signed URL on a host it changes from time to time (it was
+// objects.githubusercontent.com, now release-assets.githubusercontent.com), and
+// Tampermonkey checks the final URL of a redirect as well as the first. Naming
+// one host meant every header read failed the day GitHub moved.
 //
 // "Missing" needs to know what you already have, and no manager will say so
 // from here: Tampermonkey and Violentmonkey expose `external.<Manager>
@@ -32,7 +39,7 @@ import { compareVersions } from '../lib/version';
 
 export const meta: ScriptMeta = {
   name: 'Code Helpers: GitHub Releases — Install Userscripts',
-  version: '1.3.0',
+  version: '1.4.0',
   description:
     'Install buttons beside every .user.js asset on a repo\'s releases page, plus "install all missing", installing from each script\'s own @downloadURL so the browser gets a page instead of a download. Installed state is read live from the scripts running on the page.',
   match: ['https://github.com/*/*/releases*'],
@@ -47,8 +54,10 @@ export const meta: ScriptMeta = {
     'GM.openInTab',
     'GM.xmlHttpRequest',
   ],
-  // Asset URLs redirect off github.com, so both hosts have to be reachable.
-  connect: ['github.com', 'objects.githubusercontent.com'],
+  // Asset URLs redirect off github.com to a signed asset host whose name
+  // GitHub has changed before, and @connect checks the redirect's final URL —
+  // so the whole domain, not one host. A bare domain covers its subdomains.
+  connect: ['github.com', 'githubusercontent.com'],
 };
 /** One `.user.js` row in a release's assets list. */
 type Asset = {
@@ -70,8 +79,9 @@ type Header = {
   name: string;
   namespace: string;
   version: string;
-  /** Where the author says to install from; the asset URL if they didn't say. */
-  downloadURL: string;
+  /** Where the author says to install from. Null when the script declares no
+   *  @downloadURL, which leaves only the asset itself — a download, not a page. */
+  downloadURL: string | null;
 };
 
 /** What a running script says about itself, via its beacon tag. */
@@ -114,6 +124,10 @@ const CSS = `
   [${BUTTON}][data-state='installed'],
   [${BUTTON}][data-state='older'],
   [${BUTTON}][data-state='pending'] { opacity: .55; }
+  [${BUTTON}][data-state='blocked'] {
+    border-color: var(--borderColor-danger-emphasis, #da3633);
+    color: var(--fgColor-danger, #f85149);
+  }
 
   [${ALL_ROW}] { display: flex; align-items: center; gap: 10px; }
   [${ALL_ROW}] .note { font-size: 12px; color: var(--fgColor-muted, #848d97); }
@@ -183,7 +197,7 @@ function assetsOnPage(): Asset[] {
   return [...assets.values()];
 }
 
-type State = 'install' | 'update' | 'installed' | 'older' | 'pending';
+type State = 'install' | 'update' | 'installed' | 'older' | 'pending' | 'blocked';
 
 // ────────────────────────────────────────────────────────────────────────
 //  What is running on this page. Every script built from this repo announces
@@ -223,6 +237,16 @@ function stateOf(asset: Asset): { state: State; label: string; title: string } {
   if (!header) {
     return { state: 'install', label: 'Install', title: `${asset.file} — reading its version…` };
   }
+  if (!header.downloadURL) {
+    return {
+      state: 'blocked',
+      label: `No install URL`,
+      title:
+        `${header.name} ${header.version} declares no @downloadURL, and the release asset is ` +
+        `served as a download rather than a page, so there is nothing a userscript manager ` +
+        `can install from. Click to copy the asset URL.`,
+    };
+  }
 
   const running = beacons.get(identity(header.namespace, header.name));
   if (!running) {
@@ -240,14 +264,17 @@ function stateOf(asset: Asset): { state: State; label: string; title: string } {
     return {
       state: 'installed',
       label: `Installed ${running.version}`,
-      title: `Up to date — ${running.name} ${running.version} is running on this page. Click to install again.`,
+      title: `Up to date — ${running.name} ${running.version} is running on this page. Click to reinstall it.`,
     };
   }
   if (order > 0) {
     return {
       state: 'update',
       label: `Update → ${header.version}`,
-      title: `You have ${running.version} running; this release has ${header.version}.`,
+      title:
+        `You have ${running.version} running; this release has ${header.version}. Click to open ` +
+        `your manager's update page for it — it matches @namespace + @name, so it updates in ` +
+        `place rather than installing a second copy.`,
     };
   }
   return {
@@ -262,28 +289,72 @@ function needsInstall(asset: Asset): boolean {
   return state === 'install' || state === 'update';
 }
 
-/** Chrome's MV3 Tampermonkey can't intercept .user.js without developer mode. */
+/** A manager turns a .user.js navigation into its install page, but only if it
+ *  can still see the navigation. Chrome's MV3 needs that switched on by hand. */
 function hintOnce() {
   if (data.hintSeen) return;
   data.hintSeen = true;
   save();
   toast({
-    text: 'If a tab downloads the file instead of offering to install it, your manager could not intercept the URL — on Chrome, enable Developer mode at chrome://extensions, or paste the URL into the dashboard\'s "Install from URL".',
+    text:
+      'If that tab shows the script as plain text instead of offering to install it, your ' +
+      'manager could not intercept the URL. On Chrome, turn on "Allow user scripts" on the ' +
+      "extension's own details page (Developer mode before Chrome 138), or paste the URL into " +
+      'the dashboard\'s "Install from URL".',
     duration: 20_000,
   });
 }
 
-function install(asset: Asset, background = false) {
-  const header = data.headers[asset.url];
-  // The author's own install URL is served inline as text where the release
-  // asset is served as a download, so prefer it whenever the header gave us one.
-  GM.openInTab(header?.downloadURL ?? asset.url, background);
+/** Where a script can actually be installed from, or null if nowhere.
+ *  Reads the asset's header first, retrying a read that failed earlier. */
+async function installURL(asset: Asset): Promise<string | null> {
+  if (!data.headers[asset.url]) reads.delete(asset.url);
+  const header = await readHeader(asset);
+  return header?.downloadURL ?? null;
+}
+
+async function install(asset: Asset, background = false) {
+  // Shown while the header read is in flight, so a click is never silent.
+  pending.add(asset.url);
+  render();
+
+  const url = await installURL(asset);
+  if (!url) {
+    pending.delete(asset.url);
+    render();
+    // The asset itself is served as an attachment. Opening it would save a file
+    // and install nothing, which is the one outcome worth refusing outright.
+    toast({
+      text:
+        `Could not work out where to install ${asset.file} from. Its release asset is served ` +
+        `as a download, not as a page, so opening it would only save a file.`,
+      duration: 12_000,
+    });
+    return;
+  }
+
+  GM.openInTab(url, background);
   hintOnce();
 
   // Whatever the manager does with that tab, this page can't see it: a newly
   // installed script only announces itself on the next load.
-  pending.add(asset.url);
   render();
+}
+
+/** Nothing to install from: hand over the URL so it can be pasted into the
+ *  manager's own "Install from URL", which accepts what a browser won't render. */
+function copyAssetURL(asset: Asset) {
+  // navigator.clipboard is absent outside a secure context and can throw on
+  // access, so showing the URL has to work even when copying it can't.
+  const show = () => toast({ text: asset.url, duration: 20_000 });
+  try {
+    navigator.clipboard
+      ?.writeText(asset.url)
+      .then(() => toast({ text: `Copied the asset URL for ${asset.file}.` }))
+      .catch(show) ?? show();
+  } catch {
+    show();
+  }
 }
 
 function installAll(list: HTMLElement) {
@@ -299,47 +370,61 @@ function installAll(list: HTMLElement) {
   missing.forEach((asset, i) => setTimeout(() => install(asset, true), i * 700));
 }
 
-/** URLs whose header we have asked for: in flight, done, or failed for good. */
-const asked = new Set<string>();
+/** Header reads by asset URL: in flight, done, or failed. A failed read stays
+ *  in the map so render(), which runs on every DOM mutation, can't turn one
+ *  dead host into a request storm; clicking Install clears it to try again. */
+const reads = new Map<string, Promise<Header | null>>();
 
 function field(text: string, key: string): string {
   return new RegExp(`^//\\s*@${key}\\s+(.+)$`, 'm').exec(text)?.[1]?.trim() ?? '';
 }
 
-/** Read the metadata block out of an asset, once per URL, ever. */
-function readHeader(asset: Asset) {
-  if (data.headers[asset.url] || asked.has(asset.url)) return;
-  // Never cleared on failure: render() runs on every DOM mutation, and a
-  // cleared guard would turn one dead host into a request storm.
-  asked.add(asset.url);
+/** Read the metadata block out of an asset. Resolves null if it can't be read. */
+function readHeader(asset: Asset): Promise<Header | null> {
+  const cached = data.headers[asset.url];
+  if (cached) return Promise.resolve(cached);
 
-  GM.xmlHttpRequest({
-    method: 'GET',
-    url: asset.url,
-    // The metadata block is the first few lines; no need for the whole bundle
-    // (a server that ignores the range just sends everything, which still works).
-    headers: { Range: 'bytes=0-4095' },
-    onload: (res) => {
-      // GM routes HTTP errors here too, and an error body is not a userscript.
-      if (res.status >= 400) {
-        console.warn('[releases-install] could not read', asset.url, res.status);
-        return;
-      }
-      const text = res.responseText || '';
-      const version = field(text, 'version');
-      if (!version) return;
+  const existing = reads.get(asset.url);
+  if (existing) return existing;
 
-      data.headers[asset.url] = {
-        name: field(text, 'name') || asset.file,
-        namespace: field(text, 'namespace'),
-        version,
-        downloadURL: field(text, 'downloadURL') || asset.url,
-      };
-      save();
-      render();
-    },
-    onerror: () => console.warn('[releases-install] could not reach', asset.url),
+  const read = new Promise<Header | null>((resolve) => {
+    GM.xmlHttpRequest({
+      method: 'GET',
+      url: asset.url,
+      // The metadata block is the first few lines; no need for the whole bundle
+      // (a server that ignores the range just sends everything, which still works).
+      headers: { Range: 'bytes=0-4095' },
+      onload: (res) => {
+        // GM routes HTTP errors here too, and an error body is not a userscript.
+        if (res.status >= 400) {
+          console.warn('[releases-install] could not read', asset.url, res.status);
+          return resolve(null);
+        }
+        const text = res.responseText || '';
+        const version = field(text, 'version');
+        if (!version) return resolve(null);
+
+        const header: Header = {
+          name: field(text, 'name') || asset.file,
+          namespace: field(text, 'namespace'),
+          version,
+          downloadURL: field(text, 'downloadURL') || null,
+        };
+        data.headers[asset.url] = header;
+        save();
+        render();
+        resolve(header);
+      },
+      onerror: () => {
+        // Nearly always @connect: GM checks the final URL of a redirect too.
+        console.warn('[releases-install] could not reach', asset.url);
+        resolve(null);
+      },
+    });
   });
+
+  reads.set(asset.url, read);
+  return read;
 }
 
 function ensureStyle() {
@@ -366,6 +451,7 @@ function button(asset: Asset) {
   if (!existing) {
     btn.addEventListener('click', (e) => {
       e.preventDefault();
+      if (stateOf(asset).state === 'blocked') return copyAssetURL(asset);
       install(asset);
     });
     // Beside the file name, inside the row's own left-hand cell.
