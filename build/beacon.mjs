@@ -1,4 +1,10 @@
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import ts from 'typescript';
 import { RELEASES_MATCH } from './repo.mjs';
+
+const BEACON_SRC = join(dirname(fileURLToPath(import.meta.url)), '../src/lib/beacon.ts');
 
 /**
  * A Chrome-style `@match` pattern as a RegExp over a URL without its fragment.
@@ -30,34 +36,49 @@ export function ownMatchCovers(def, url) {
 const BEACON_PAGE = RELEASES_MATCH.replace(/\*$/, '');
 
 /**
- * Code that runs first in every bundle, inside the IIFE. On this repo's
- * releases page it leaves a <meta name="userscript-beacon"> tag saying which
- * script this is and what version, so the release-install script can read
- * what is actually running instead of remembering what it once installed.
- * Then it returns out of the IIFE unless the script's own @match covers the
- * page — the beacon @match must not make a script run where it never did.
+ * src/lib/beacon.ts as plain JS, ready to paste into a bundle: the `export`
+ * keywords go (a bundle has no exports) and the types go with transpiling.
+ * Read once per build, and never imported — the module is inlined rather than
+ * bundled because the call has to run before any of the bundle's own code.
+ */
+let beaconJs;
+function beaconSource() {
+  if (beaconJs) return beaconJs;
+  const { outputText } = ts.transpileModule(readFileSync(BEACON_SRC, 'utf8'), {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
+  });
+  // Drop the file's own doc comment: the intro writes its own.
+  beaconJs = outputText
+    .replace(/^\/\*\*[\s\S]*?\*\/\s*/, '')
+    .replace(/^export /gm, '')
+    .trim();
+  return beaconJs;
+}
+
+/**
+ * What every bundle starts with, inside the IIFE: src/lib/beacon.ts inlined,
+ * then the one call to it. The call's answer decides whether the rest of the
+ * bundle runs — the beacon needs an extra @match for the page it reports on,
+ * and that must not make a script run anywhere it didn't before, so a script
+ * whose own @match misses this page returns here and does nothing else.
  *
  * @param {{ file: string, name: string, namespace: string, version: string, match: string[] }} def
  */
 export function beaconIntro(def) {
-  const beacon = { name: def.name, namespace: def.namespace, version: def.version };
+  const script = { name: def.name, namespace: def.namespace, version: def.version };
   const own = def.match.map((m) => matchToRegExp(m).source);
   const page = matchToRegExp(RELEASES_MATCH).source;
   return [
-    '// Installed-script beacon (build/beacon.mjs): announce this script on',
-    `// ${BEACON_PAGE}, then stop unless our own @match covers the page.`,
+    '// Installed-script beacon — src/lib/beacon.ts, inlined here so it runs',
+    `// before anything else: announce this script on ${BEACON_PAGE},`,
+    "// then stop unless this script's own @match covers the page.",
     '{',
-    `  const here = location.href.split('#')[0];`,
-    `  if (new RegExp(${JSON.stringify(page)}).test(here)) {`,
-    `    const beacon = ${JSON.stringify(beacon)};`,
-    `    const tag = document.createElement('meta');`,
-    `    tag.name = 'userscript-beacon';`,
-    `    Object.assign(tag.dataset, beacon);`,
-    `    const mount = () => (document.head || document.documentElement).appendChild(tag);`,
-    `    if (document.head || document.documentElement) mount();`,
-    `    else document.addEventListener('DOMContentLoaded', mount, { once: true });`,
-    '  }',
-    `  if (!${JSON.stringify(own)}.some((re) => new RegExp(re).test(here))) return;`,
+    beaconSource()
+      .split('\n')
+      .map((l) => (l ? `  ${l}` : l))
+      .join('\n'),
+    '',
+    `  if (!announce(${JSON.stringify(script)}, ${JSON.stringify(page)}, ${JSON.stringify(own)})) return;`,
     '}',
     '',
   ].join('\n');
