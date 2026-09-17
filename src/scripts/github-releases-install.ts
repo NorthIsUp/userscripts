@@ -20,10 +20,10 @@
 // .isInstalled` only on the script-hosting sites they allow-list (Tampermonkey
 // 5.6 closed it everywhere else), and one script's storage is invisible to
 // another. So the scripts answer for themselves. The build gives every script
-// in this repo an extra @match for this repo's releases page and a beacon that
-// runs before anything else (build/beacon.mjs): it drops a
-// <meta name="userscript-beacon"> tag carrying the script's name, namespace and
-// version, then bails out unless the script's own @match covers the page. What
+// in this repo an extra @match for this repo's releases page, and starts every
+// bundle with src/lib/beacon.ts: it drops a <meta name="userscript-beacon"> tag
+// carrying the script's name, namespace and version, then bails out unless the
+// script's own @match covers the page. What
 // the buttons show is therefore what is running right now — nothing is
 // remembered, and a script that was uninstalled (or disabled) simply isn't
 // there. Scripts from other repos don't announce themselves, so on their
@@ -32,6 +32,7 @@
 // The buttons are markup + one stylesheet; nothing is written to element.style.
 
 import { DataStore, GMStorageEngine } from '@sv443-network/userutils';
+import { BEACON_TAG, type Beacon } from '../lib/beacon';
 import { observeDom } from '../lib/dom';
 import type { ScriptMeta } from '../lib/meta';
 import { toast } from '../lib/ui';
@@ -83,9 +84,6 @@ type Header = {
    *  @downloadURL, which leaves only the asset itself — a download, not a page. */
   downloadURL: string | null;
 };
-
-/** What a running script says about itself, via its beacon tag. */
-type Beacon = { name: string; namespace: string; version: string };
 
 type Store = {
   /** asset URL → its parsed metadata block. */
@@ -237,7 +235,7 @@ function identity(namespace: string, name: string): string {
 }
 
 function collectBeacons() {
-  for (const tag of document.querySelectorAll<HTMLElement>('meta[name="userscript-beacon"]')) {
+  for (const tag of document.querySelectorAll<HTMLElement>(`meta[name="${BEACON_TAG}"]`)) {
     const { name = '', namespace = '', version = '' } = tag.dataset;
     if (!name && !namespace) continue;
     beacons.set(identity(namespace, name), { name, namespace, version });

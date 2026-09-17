@@ -34,10 +34,11 @@ still carry every build; they're for archaeology, not for installing.
 ```
 src/scripts/<name>.ts   one file per userscript — code AND its header metadata
 src/lib/ui.ts           toasts + settings panels shared by every script
+src/lib/beacon.ts       the installed-script beacon every bundle starts with
 src/lib/                other shared helpers (dom, github, meta type, GM globals)
 build/icons.mjs         icon data URIs, one entry per brand
 build/header.mjs        renders the ==UserScript== block
-build/beacon.mjs        the installed-script beacon every bundle starts with
+build/beacon.mjs        inlines src/lib/beacon.ts at the top of each bundle
 build/meta.mjs          reads each script's `meta` export at build time
 rollup.config.mjs       one bundle per script → dist/
 ```
@@ -86,10 +87,16 @@ the hosting sites they allow-list (Tampermonkey 5.6 closed it everywhere else),
 and one script's storage is invisible to another. So the scripts answer for
 themselves. The build gives every script an extra
 `@match https://github.com/NorthIsUp/userscripts/releases*` and starts each
-bundle with a beacon (`build/beacon.mjs`): on that page it appends a
+bundle with `announce()` from `src/lib/beacon.ts`: on that page it appends a
 `<meta name="userscript-beacon">` tag carrying the script's name, namespace and
-version, then returns out of the bundle unless the script's own `@match` covers
-the page, so nothing runs anywhere it didn't before.
+version, and it returns false unless the script's own `@match` covers the page,
+which drops the bundle out before its own code, so nothing runs anywhere it
+didn't before.
+
+The beacon lives in the shared lib like any other helper — typechecked, linted
+and unit-tested against a DOM. `build/beacon.mjs` only transpiles that one file
+and pastes it at the top of each bundle, because the call has to run before the
+bundle's own code and so cannot be a normal import.
 
 `github-releases-install` reads those tags and compares each against the
 release asset's own `@version`, so its buttons show what is running right now,
