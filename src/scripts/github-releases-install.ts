@@ -39,7 +39,7 @@ import { compareVersions } from '../lib/version';
 
 export const meta: ScriptMeta = {
   name: 'Code Helpers: GitHub Releases — Install Userscripts',
-  version: '1.5.0',
+  version: '1.5.1',
   description:
     "Install and update buttons beside every .user.js asset on a repo's releases page, plus one button for the whole list, going through each script's own @downloadURL so the browser gets a page instead of a download. Installed state is read live from the scripts running on the page.",
   match: ['https://github.com/*/*/releases*'],
@@ -95,6 +95,7 @@ type Store = {
 };
 
 const BUTTON = 'data-userscript-install';
+const ROW = 'data-userscript-install-row';
 const ALL_ROW = 'data-userscript-install-all';
 const STYLE = 'userscript-install-style';
 
@@ -131,6 +132,19 @@ const CSS = `
   [${BUTTON}][data-state='blocked'] {
     border-color: var(--borderColor-danger-emphasis, #da3633);
     color: var(--fgColor-danger, #f85149);
+  }
+
+  /* GitHub's asset row is two cells that already fill it end to end: the file
+     name is col-12 col-lg-6, and the digest, size and date share col-md-6. A
+     third child has to take its width from one of them, and the digest sits in
+     a wrapper with overflow:hidden and min-width:0 — so the digest is what
+     collapses, and the sha disappears. File names are far narrower than the
+     half row they're given, so let that cell size to its own content: the
+     button lands in slack the row already had, and nothing has to shrink. */
+  li[${ROW}] > div:first-child {
+    width: auto;
+    flex: 0 1 auto;
+    min-width: 0;
   }
 
   [${ALL_ROW}] { display: flex; align-items: center; gap: 10px; }
@@ -492,9 +506,10 @@ function button(asset: Asset) {
       install(asset);
     });
     // At the end of the row, after GitHub's own columns — not beside the file
-    // name. That left-hand cell is col-12 below the lg breakpoint, so a button
-    // inside it takes width the row has already spent, and the digest, size and
-    // date in the right-hand cell (which has overflow:hidden) get clipped away.
+    // name, whose cell is col-12 below the lg breakpoint. The marker lets the
+    // stylesheet above reclaim that cell's unused width for the button, so the
+    // digest beside it keeps its own.
+    asset.row.setAttribute(ROW, '');
     asset.row.appendChild(btn);
   }
 }
