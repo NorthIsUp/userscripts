@@ -39,9 +39,9 @@ import { compareVersions } from '../lib/version';
 
 export const meta: ScriptMeta = {
   name: 'Code Helpers: GitHub Releases — Install Userscripts',
-  version: '1.4.0',
+  version: '1.5.0',
   description:
-    'Install buttons beside every .user.js asset on a repo\'s releases page, plus "install all missing", installing from each script\'s own @downloadURL so the browser gets a page instead of a download. Installed state is read live from the scripts running on the page.',
+    "Install and update buttons beside every .user.js asset on a repo's releases page, plus one button for the whole list, going through each script's own @downloadURL so the browser gets a page instead of a download. Installed state is read live from the scripts running on the page.",
   match: ['https://github.com/*/*/releases*'],
   runAt: 'document-idle',
   icon: 'github',
@@ -102,6 +102,10 @@ const CSS = `
   [${BUTTON}] {
     font: inherit;
     font-size: 12px;
+    /* The row is a flex container that is already full: never give up width
+       (which would clip the label) and never stretch to the row's height. */
+    flex-shrink: 0;
+    align-self: center;
     line-height: 20px;
     cursor: pointer;
     margin-left: 8px;
@@ -199,6 +203,12 @@ function assetsOnPage(): Asset[] {
 
 type State = 'install' | 'update' | 'installed' | 'older' | 'pending' | 'blocked';
 
+/** The two things a click can do. "Install" is only ever a script that isn't
+ *  installed; "update" is only ever one that is, with a newer release here. */
+type Action = 'install' | 'update';
+
+type Tally = Record<Action, number>;
+
 // ────────────────────────────────────────────────────────────────────────
 //  What is running on this page. Every script built from this repo announces
 //  itself with a <meta name="userscript-beacon"> tag (see the note up top).
@@ -220,18 +230,19 @@ function collectBeacons() {
   }
 }
 
-/** Assets whose install tab was opened in this page's lifetime. In memory only:
- *  whether the install actually happened is the beacon's to say, after a reload. */
-const pending = new Set<string>();
+/** Assets whose tab was opened in this page's lifetime, and what that tab was
+ *  for. In memory only: whether it took is the beacon's to say, after a reload. */
+const pending = new Map<string, Action>();
 
 function stateOf(asset: Asset): { state: State; label: string; title: string } {
   const header = data.headers[asset.url];
 
-  if (pending.has(asset.url)) {
+  const inFlight = pending.get(asset.url);
+  if (inFlight) {
     return {
       state: 'pending',
-      label: 'Installing…',
-      title: `${asset.file} — an install tab was opened. Reload this page to see whether it took.`,
+      label: inFlight === 'update' ? 'Updating…' : 'Installing…',
+      title: `${asset.file} — a tab was opened to ${inFlight} it. Reload this page to see whether it took.`,
     };
   }
   if (!header) {
@@ -254,8 +265,8 @@ function stateOf(asset: Asset): { state: State; label: string; title: string } {
       state: 'install',
       label: `Install ${header.version}`,
       title:
-        `${header.name} ${header.version} — not running on this page (not installed, disabled, ` +
-        `or a script that doesn't announce itself). Installs from ${header.downloadURL}`,
+        `New here — ${header.name} ${header.version} is not running on this page (not installed, ` +
+        `disabled, or a script that doesn't announce itself). Installs from ${header.downloadURL}`,
     };
   }
 
@@ -264,7 +275,9 @@ function stateOf(asset: Asset): { state: State; label: string; title: string } {
     return {
       state: 'installed',
       label: `Installed ${running.version}`,
-      title: `Up to date — ${running.name} ${running.version} is running on this page. Click to reinstall it.`,
+      title:
+        `Installed and up to date — ${running.name} ${running.version} is running on this page. ` +
+        `Nothing to update; click only if you want to reinstall the same version.`,
     };
   }
   if (order > 0) {
@@ -272,21 +285,35 @@ function stateOf(asset: Asset): { state: State; label: string; title: string } {
       state: 'update',
       label: `Update → ${header.version}`,
       title:
-        `You have ${running.version} running; this release has ${header.version}. Click to open ` +
-        `your manager's update page for it — it matches @namespace + @name, so it updates in ` +
-        `place rather than installing a second copy.`,
+        `Installed, but out of date — you have ${running.version} running and this release has ` +
+        `${header.version}. Click to open your manager's update page: it matches @namespace + ` +
+        `@name, so it updates in place rather than installing a second copy.`,
     };
   }
   return {
     state: 'older',
     label: `Older ${header.version}`,
-    title: `This release predates what you have running (${running.version}).`,
+    title:
+      `Installed and newer — you have ${running.version} running and this release only has ` +
+      `${header.version}, so there is nothing to update. Click only to go back to the older one.`,
   };
 }
 
-function needsInstall(asset: Asset): boolean {
+/** What clicking this row would do, if anything: install a script that isn't
+ *  here yet, or update one that is. Every other state is nothing to do. */
+function actionFor(asset: Asset): Action | null {
   const state = stateOf(asset).state;
-  return state === 'install' || state === 'update';
+  return state === 'install' || state === 'update' ? state : null;
+}
+
+/** How many of a list's rows are new, and how many are installed but behind. */
+function tallyOf(assets: Asset[]): Tally {
+  const tally: Tally = { install: 0, update: 0 };
+  for (const asset of assets) {
+    const action = actionFor(asset);
+    if (action) tally[action]++;
+  }
+  return tally;
 }
 
 /** A manager turns a .user.js navigation into its install page, but only if it
@@ -314,8 +341,10 @@ async function installURL(asset: Asset): Promise<string | null> {
 }
 
 async function install(asset: Asset, background = false) {
+  // Read the verb before pending hides it, so the row can say which it is.
+  const action = actionFor(asset) ?? 'install';
   // Shown while the header read is in flight, so a click is never silent.
-  pending.add(asset.url);
+  pending.set(asset.url, action);
   render();
 
   const url = await installURL(asset);
@@ -358,16 +387,24 @@ function copyAssetURL(asset: Asset) {
 }
 
 function installAll(list: HTMLElement) {
-  const missing = assetsOnPage().filter((a) => a.list === list && needsInstall(a));
-  if (!missing.length) return;
+  const todo = assetsOnPage().filter((a) => a.list === list && actionFor(a));
+  if (!todo.length) return;
 
   toast({
-    text: `Opening ${missing.length} install${missing.length === 1 ? '' : 's'} — confirm each in its own tab.`,
+    text: `Opening ${phrase(tallyOf(todo))} — confirm each in its own tab.`,
     duration: 6_000,
   });
   // Staggered: managers queue their install pages badly when a burst of tabs
   // opens at once, and the browser treats it as a popup flood.
-  missing.forEach((asset, i) => setTimeout(() => install(asset, true), i * 700));
+  todo.forEach((asset, i) => setTimeout(() => install(asset, true), i * 700));
+}
+
+/** "2 installs and 1 update", keeping the two words for what each one is. */
+function phrase({ install, update }: Tally): string {
+  const parts: string[] = [];
+  if (install) parts.push(`${install} install${install === 1 ? '' : 's'}`);
+  if (update) parts.push(`${update} update${update === 1 ? '' : 's'}`);
+  return parts.join(' and ');
 }
 
 /** Header reads by asset URL: in flight, done, or failed. A failed read stays
@@ -454,15 +491,26 @@ function button(asset: Asset) {
       if (stateOf(asset).state === 'blocked') return copyAssetURL(asset);
       install(asset);
     });
-    // Beside the file name, inside the row's own left-hand cell.
-    const link = asset.row.querySelector('a[href*="/releases/download/"]');
-    link?.parentElement?.appendChild(btn);
+    // At the end of the row, after GitHub's own columns — not beside the file
+    // name. That left-hand cell is col-12 below the lg breakpoint, so a button
+    // inside it takes width the row has already spent, and the digest, size and
+    // date in the right-hand cell (which has overflow:hidden) get clipped away.
+    asset.row.appendChild(btn);
   }
 }
 
-function allRow(list: HTMLElement, missing: number) {
+function allRow(list: HTMLElement, tally: Tally) {
   const existing = list.querySelector<HTMLElement>(`[${ALL_ROW}]`);
-  const label = missing ? `Install all missing (${missing})` : 'Everything here is installed';
+  const { install, update } = tally;
+  // Say which of the two it would do, and how many of each — "missing" counted
+  // updates as missing, which they are not: those scripts are already here.
+  const label = install
+    ? update
+      ? `Install ${install} missing, update ${update}`
+      : `Install ${install} missing`
+    : update
+      ? `Update ${update}`
+      : 'Everything here is installed and up to date';
   if (existing?.dataset.label === label) return;
 
   const row = existing ?? document.createElement('li');
@@ -475,15 +523,15 @@ function allRow(list: HTMLElement, missing: number) {
   const btn = document.createElement('button');
   btn.setAttribute(BUTTON, 'all');
   btn.type = 'button';
-  btn.dataset.state = missing ? 'install' : 'installed';
+  btn.dataset.state = install ? 'install' : update ? 'update' : 'installed';
   btn.textContent = label;
-  btn.disabled = missing === 0;
+  btn.disabled = install + update === 0;
   btn.addEventListener('click', () => installAll(list));
   row.appendChild(btn);
 
   const note = document.createElement('span');
   note.className = 'note';
-  note.textContent = 'Installs open one tab each — confirm them in your userscript manager.';
+  note.textContent = 'Opens one tab each — confirm them in your userscript manager.';
   row.appendChild(note);
 
   if (!existing) list.appendChild(row);
@@ -499,13 +547,13 @@ function render() {
   ensureStyle();
   collectBeacons();
 
-  const missing = new Map<HTMLElement, number>();
+  const lists = new Map<HTMLElement, Asset[]>();
   for (const asset of assets) {
     readHeader(asset);
     button(asset);
-    missing.set(asset.list, (missing.get(asset.list) ?? 0) + (needsInstall(asset) ? 1 : 0));
+    lists.set(asset.list, [...(lists.get(asset.list) ?? []), asset]);
   }
-  for (const [list, count] of missing) allRow(list, count);
+  for (const [list, own] of lists) allRow(list, tallyOf(own));
 }
 
 // Assets live behind a lazily-loaded <include-fragment>, so the rows appear
