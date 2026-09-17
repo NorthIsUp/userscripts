@@ -18,7 +18,7 @@ still carry every build; they're for archaeology, not for installing.
 
 | Script | What it does |
 |--------|--------------|
-| [github-releases-install](https://raw.githubusercontent.com/NorthIsUp/userscripts/dist/github-releases-install.user.js) | Install buttons on a repo's releases page, plus "install all missing"; installed state read live from the scripts on the page |
+| [github-releases-install](https://raw.githubusercontent.com/NorthIsUp/userscripts/dist/github-releases-install.user.js) | Install and update buttons on a repo's releases page, plus one for the whole list; installed state read live from the scripts on the page |
 | [github-pr-list-accepted](https://raw.githubusercontent.com/NorthIsUp/userscripts/dist/github-pr-list-accepted.user.js) | Green-tints and collapses accepted PRs on a repo's PR list |
 | [github-pr-submit-review](https://raw.githubusercontent.com/NorthIsUp/userscripts/dist/github-pr-submit-review.user.js) | Review action icons on the GitHub PR page — approve, approve/reject/comment, close |
 | [github-mention-bots](https://raw.githubusercontent.com/NorthIsUp/userscripts/dist/github-mention-bots.user.js) | Configurable bots in GitHub's @-mention autocomplete |
@@ -92,8 +92,10 @@ version, then returns out of the bundle unless the script's own `@match` covers
 the page, so nothing runs anywhere it didn't before.
 
 `github-releases-install` reads those tags and compares each against the
-release asset's own `@version`, so its buttons show what is running right now
-("Installed", "Update →", "Older"), not what was once clicked. A script that is
+release asset's own `@version`, so its buttons show what is running right now,
+not what was once clicked. "Install" means only a script that isn't installed
+here yet; "Update" means only one that is installed with a newer release on the
+page. "Installed" and "Older" are the two nothing-to-do states. A script that is
 uninstalled or disabled just isn't there. Scripts from other repos don't
 announce themselves, so on their releases pages every button reads "Install".
 
